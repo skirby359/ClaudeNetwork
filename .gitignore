@@ -1,0 +1,8 @@
+# Data files
+data/
+
+# Cache
+cache/
+
+# Environment
+.env
