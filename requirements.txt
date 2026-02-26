@@ -1,0 +1,10 @@
+polars>=0.20.0
+networkx>=3.0
+python-louvain>=0.16
+streamlit>=1.30.0
+plotly>=5.18.0
+pyvis>=0.3.2
+pandas>=2.0.0
+numpy>=1.24.0
+scipy>=1.11.0
+pytest>=7.0.0
