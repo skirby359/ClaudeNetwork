@@ -10,6 +10,7 @@ from src.state import (
 )
 from src.analytics.volume import compute_volume_trends, compute_top_n, compute_sender_concentration
 from src.export import download_csv_button
+from src.anonymize import anon_df
 from src.drilldown import handle_plotly_person_click, handle_plotly_week_click
 
 
@@ -81,7 +82,7 @@ top = _cached_top_n(start_date, end_date, top_n)
 col1, col2 = st.columns(2)
 with col1:
     st.markdown("**Top Senders**")
-    ts = top["top_senders"].to_pandas()
+    ts = anon_df(top["top_senders"]).to_pandas()
     fig3 = px.bar(ts, x="from_email", y="sent_count", title=f"Top {top_n} Senders")
     fig3.update_layout(height=400, xaxis_tickangle=-45)
     ev_senders = st.plotly_chart(fig3, width="stretch", on_select="rerun", key="p02_senders")
@@ -89,7 +90,7 @@ with col1:
 
 with col2:
     st.markdown("**Top Receivers**")
-    tr = top["top_receivers"].to_pandas()
+    tr = anon_df(top["top_receivers"]).to_pandas()
     fig4 = px.bar(tr, x="to_email", y="received_count", title=f"Top {top_n} Receivers")
     fig4.update_layout(height=400, xaxis_tickangle=-45)
     ev_receivers = st.plotly_chart(fig4, width="stretch", on_select="rerun", key="p02_receivers")

@@ -13,6 +13,7 @@ from src.analytics.volume import compute_sender_concentration
 from src.analytics.comparison import compute_period_summary, compute_delta
 from src.analytics.narrative import generate_executive_narrative
 from src.export import download_csv_button
+from src.report import generate_executive_report
 from src.drilldown import handle_plotly_person_click, handle_plotly_week_click
 
 
@@ -169,4 +170,22 @@ st.markdown(narrative)
 
 # Export
 st.divider()
-download_csv_button(weekly_agg, "weekly_aggregation.csv", "Download Weekly Data")
+col_export_a, col_export_b = st.columns(2)
+with col_export_a:
+    download_csv_button(weekly_agg, "weekly_aggregation.csv", "Download Weekly Data")
+with col_export_b:
+    # HTML report export
+    org_name = st.text_input("Organization name (for report)", value="Organization", key="p01_org_name")
+    if st.button("Generate Executive Report", type="primary"):
+        from src.state import load_filtered_graph_metrics
+        gm = load_filtered_graph_metrics(start_date, end_date)
+        report_html = generate_executive_report(
+            message_fact, edge_fact, person_dim, weekly_agg, gm,
+            narrative, start_date, end_date, org_name=org_name,
+        )
+        st.download_button(
+            label="Download Report (HTML)",
+            data=report_html.encode("utf-8"),
+            file_name=f"email_analysis_{start_date}_{end_date}.html",
+            mime="text/html",
+        )

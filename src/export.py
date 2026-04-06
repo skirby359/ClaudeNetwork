@@ -5,10 +5,12 @@ import io
 import streamlit as st
 import polars as pl
 
+from src.anonymize import anon_df
+
 
 def download_csv_button(df: pl.DataFrame, filename: str, label: str = "Download CSV") -> None:
     """Render a Streamlit download button for a Polars DataFrame as CSV."""
-    csv_bytes = df.write_csv().encode("utf-8")
+    csv_bytes = anon_df(df).write_csv().encode("utf-8")
     st.download_button(
         label=label,
         data=csv_bytes,
@@ -20,7 +22,7 @@ def download_csv_button(df: pl.DataFrame, filename: str, label: str = "Download 
 def download_excel_button(df: pl.DataFrame, filename: str, label: str = "Download Excel") -> None:
     """Render a Streamlit download button for a Polars DataFrame as Excel."""
     buf = io.BytesIO()
-    df.to_pandas().to_excel(buf, index=False, engine="openpyxl")
+    anon_df(df).to_pandas().to_excel(buf, index=False, engine="openpyxl")
     buf.seek(0)
     st.download_button(
         label=label,

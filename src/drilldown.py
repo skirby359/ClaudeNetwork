@@ -6,6 +6,8 @@ import streamlit as st
 import plotly.express as px
 import polars as pl
 
+from src.anonymize import anon, anon_df
+
 
 # ── Selection guard ──────────────────────────────────────────────────────
 
@@ -133,7 +135,9 @@ def show_person_dialog(email: str, start_date, end_date):
     row = person.row(0, named=True)
 
     # Header
-    st.markdown(f"**{row.get('display_name') or email}**")
+    display_email = anon(email)
+    display_name = row.get('display_name') or display_email
+    st.markdown(f"**{display_name}** ({display_email})")
     c1, c2, c3, c4 = st.columns(4)
     with c1:
         st.metric("Sent", f"{row['total_sent']:,}")
@@ -155,7 +159,7 @@ def show_person_dialog(email: str, start_date, end_date):
             .sort("count", descending=True).head(5)
         )
         if len(sent_to) > 0:
-            st.dataframe(sent_to.to_pandas(), hide_index=True, width="stretch")
+            st.dataframe(anon_df(sent_to).to_pandas(), hide_index=True, width="stretch")
         else:
             st.caption("No sent messages in range")
     with col_b:
@@ -166,7 +170,7 @@ def show_person_dialog(email: str, start_date, end_date):
             .sort("count", descending=True).head(5)
         )
         if len(recv_from) > 0:
-            st.dataframe(recv_from.to_pandas(), hide_index=True, width="stretch")
+            st.dataframe(anon_df(recv_from).to_pandas(), hide_index=True, width="stretch")
         else:
             st.caption("No received messages in range")
 

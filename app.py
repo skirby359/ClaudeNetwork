@@ -17,6 +17,7 @@ from src.state import (
 )
 from src.analytics.data_quality import compute_quality_metrics, compute_per_file_stats
 from src.export import download_csv_button
+from src.anonymize import render_anonymize_toggle
 from src.ingest.pipeline import get_last_ingestion_stats
 
 # Detect data file changes before anything else
@@ -31,6 +32,9 @@ with st.sidebar:
 
     # Multi-dataset selector
     render_dataset_selector()
+
+    # Privacy toggle
+    render_anonymize_toggle()
 
     config = get_config()
     dataset = config.default_dataset
