@@ -30,15 +30,15 @@
 - [ ] Hour-of-day heatmap for each automated system
 
 ### Navigation Reorganization
-- [ ] Group 21+ pages into 5 tiers in sidebar (Executive, Health, People, Details, Deep Dives)
-- [ ] Add glossary/help expander to sidebar
-
-## Later: New Analytics (Post First Sale)
+- [x] Group pages into 5 tiers in sidebar
+- [x] Add glossary/help expander to sidebar
 
 ### Org Health Score
-- [ ] Composite 0-100 score from: Gini, reciprocity rate, after-hours burden, response velocity, silo permeability, single-point-of-failure risk
-- [ ] Radar chart visualization
-- [ ] Trend over time
+- [x] Composite 0-100 score from 6 dimensions
+- [x] Radar chart visualization
+- [ ] Trend over time (future: compute per-month and show line chart)
+
+## Later: New Analytics (Post First Sale)
 
 ### Compliance Pattern Detection
 - [ ] Communication blackout window detection

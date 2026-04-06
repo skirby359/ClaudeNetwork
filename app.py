@@ -59,6 +59,23 @@ with st.sidebar:
         st.caption("Internal domains: auto-detected (configure in Settings)")
     st.page_link("pages/00_settings.py", label="Settings", icon=":material/settings:")
 
+    with st.expander("Glossary"):
+        st.markdown("""
+        **Concentration Score** (Gini): 0 = everyone sends equally, 1 = one person sends everything.
+
+        **Connector Score** (Betweenness): How many communication paths run through a person. High = critical bridge between groups.
+
+        **Importance Score** (PageRank): Influence based on who communicates with you, not just volume. Being emailed by important people raises your score.
+
+        **Communication Groups** (Communities): Natural clusters detected from who emails whom. People within a group communicate more with each other than with outsiders.
+
+        **Automated Senders**: Copiers, scanners, alert systems, and mail infrastructure detected by name patterns and extreme send/receive ratios.
+
+        **After-Hours**: Messages sent before 7 AM or after 6 PM on weekdays.
+
+        **Reply Time**: Estimated from message timing patterns (A emails B, then B emails A within 24 hours).
+        """)
+
     if st.button("Reload Pipeline", type="primary"):
         st.cache_resource.clear()
         st.cache_data.clear()
