@@ -72,7 +72,7 @@ weekly_agg = load_filtered_weekly_agg(start_date, end_date)
 # --- Nonhuman filter (cached) ---
 nonhuman_emails = load_nonhuman_emails(start_date, end_date)
 
-filter_on = st.checkbox("Hide nonhuman addresses (copiers, bots, system accounts)", value=True)
+filter_on = st.session_state.get("exclude_nonhuman", True)
 
 if filter_on:
     message_fact = message_fact.filter(~pl.col("from_email").is_in(list(nonhuman_emails)))

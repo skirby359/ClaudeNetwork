@@ -87,12 +87,9 @@ if len(edge_fact) == 0:
 person_dim = load_person_dim()
 graph_metrics = load_filtered_graph_metrics(start_date, end_date)
 
-# --- Nonhuman filter ---
+# --- Nonhuman filter (global toggle) ---
 nonhuman_emails = load_nonhuman_emails(start_date, end_date)
-filter_nonhuman = st.checkbox(
-    f"Exclude nonhuman addresses ({len(nonhuman_emails)} detected)",
-    value=True, key="p09_filter_nonhuman",
-)
+filter_nonhuman = st.session_state.get("exclude_nonhuman", True)
 if filter_nonhuman and nonhuman_emails:
     nh_list = list(nonhuman_emails)
     graph_metrics = graph_metrics.filter(~pl.col("email").is_in(nh_list))

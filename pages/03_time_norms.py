@@ -79,7 +79,7 @@ if len(message_fact) == 0:
 # --- Nonhuman filter ---
 nonhuman_emails = load_nonhuman_emails(start_date, end_date)
 
-filter_on = st.checkbox("Hide nonhuman addresses (copiers, bots, system accounts)", value=True)
+filter_on = st.session_state.get("exclude_nonhuman", True)
 
 if filter_on:
     st.caption(f"Filtered out {len(nonhuman_emails)} nonhuman addresses.")

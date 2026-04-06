@@ -3,21 +3,23 @@
 ## This Week: Demo-Ready Improvements
 
 ### Community Detection Fix
-- [ ] Add `resolution=0.5` to Louvain calls in `src/analytics/network.py:46` and `src/analytics/temporal_network.py:47`
-- [ ] Add `merge_small_communities()` function — merge <3-member communities into nearest neighbor
-- [ ] Pre-filter nonhuman addresses before community detection in `compute_node_metrics()`
-- [ ] Auto-label communities by central person + dominant domain (replace "C0, C1" labels)
+- [x] Add `resolution=0.5` to Louvain calls
+- [x] Add `merge_small_communities()` function
+- [x] Pre-filter nonhuman addresses before community detection
+- [x] Auto-label communities by central person + dominant domain
 
 ### Executive Summary Overhaul (Page 01)
-- [ ] Add Human vs Machine split as first KPI row (donut chart + metrics)
-- [ ] Add Critical Personnel Risk section (top 5 bridges with removal impact)
-- [ ] Add response time health metric
-- [ ] Add external dependencies summary
-- [ ] Replace jargon with plain English throughout
+- [x] Add Human vs Machine split as first KPI row (donut chart)
+- [x] Add Critical Personnel Risk section (top 5 bridges)
+- [x] Add response time health metric
+- [x] Add external dependencies summary
+- [x] Replace jargon with plain English
 
 ### Global UX
-- [ ] Move nonhuman filter to global sidebar (app.py) instead of per-page checkboxes
-- [ ] Replace jargon labels on Page 07 ("betweenness" → "cross-group connector")
+- [x] Move nonhuman filter to global sidebar toggle
+- [x] Replace jargon labels on Page 07
+- [x] Create Automated Systems Dashboard (Page 21)
+- [x] Reorganize sidebar navigation into 5 tiers
 
 ## Next Week: New Pages + Navigation
 

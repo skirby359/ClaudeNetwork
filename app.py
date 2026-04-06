@@ -36,6 +36,15 @@ with st.sidebar:
     # Privacy toggle
     render_anonymize_toggle()
 
+    # Global nonhuman filter
+    st.toggle(
+        "Exclude automated senders",
+        value=st.session_state.get("exclude_nonhuman", True),
+        key="_global_nonhuman_toggle",
+        help="Hide copiers, bots, and system accounts from all analysis pages",
+    )
+    st.session_state.exclude_nonhuman = st.session_state._global_nonhuman_toggle
+
     config = get_config()
     csv_files = config.discover_csv_files()
     st.write(f"**{len(csv_files)} CSV file{'s' if len(csv_files) != 1 else ''}** in `data/`")
@@ -117,30 +126,38 @@ try:
     st.markdown("""
     ### Navigate the Analysis
 
-    Use the sidebar to explore the analysis pages. Start with **Settings** to configure your data.
+    **Executive View**
+    - **Executive Summary** — Key findings at a glance
+    - **Risk Register** — Anomalies and flags
+    - **Narrative Insights** — Auto-generated analysis
 
-    0. **Settings** — Data upload, internal domains, column mapping
+    **Organizational Health**
+    - **Time Norms** — When do people work?
+    - **Response Time** — How fast do people respond?
+    - **Data Quality** — Is the data complete?
 
-    1. **Executive Summary** — Key findings at a glance
-    2. **Volume & Seasonality** — Message flow trends over time
-    3. **Time Norms** — When do people communicate?
-    4. **Broadcast & Attention** — Mass-send patterns and inbox load
-    5. **Artifact vs Ping** — Message size and purpose patterns
-    6. **Network Map** — Interactive communication network
-    7. **Bottlenecks & Routing** — Who are the critical connectors?
-    8. **Dyads & Asymmetry** — Bidirectional relationship analysis
-    9. **Coordination & Churn** — Community structure evolution
-    10. **Risk Register** — Anomalies and flags
-    11. **External Contacts** — Top external addresses by volume
-    12. **Search** — Look up any email address
-    13. **Response Time** — Reply detection and speed metrics
-    14. **Hierarchy Inference** — Leadership pattern detection
-    15. **Silos & Bridges** — Inter-community analysis
-    16. **Temporal Evolution** — How the network changes over time
-    17. **Size Forensics** — Email size patterns and anomalies
-    18. **Data Quality** — Completeness, gaps, and ingestion stats
-    19. **Narrative Insights** — Auto-generated executive narrative
-    20. **Period Comparison** — Side-by-side period analysis
+    **People & Structure**
+    - **Bottlenecks & Routing** — Who are the critical connectors?
+    - **Hierarchy Inference** — Who leads?
+    - **Silos & Bridges** — Where are the gaps?
+
+    **Communication Patterns**
+    - **Volume & Seasonality** — Message flow trends
+    - **Broadcast & Attention** — Mass-send patterns
+    - **Artifact vs Ping** — Message size patterns
+    - **Dyads & Asymmetry** — Relationship analysis
+    - **External Contacts** — External partners
+    - **Search** — Look up any email address
+
+    **Deep Dives**
+    - **Network Map** — Interactive network visualization
+    - **Coordination & Churn** — Community evolution
+    - **Temporal Evolution** — How the network changes
+    - **Size Forensics** — Size anomalies and templates
+    - **Period Comparison** — Side-by-side analysis
+    - **Automated Systems** — Machine traffic dashboard
+
+    **Setup:** Settings — Data upload, domains, connectors
     """)
 
 except Exception as e:

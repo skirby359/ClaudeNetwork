@@ -86,12 +86,9 @@ if len(edge_fact) == 0:
     st.warning("No edge data in selected date range.")
     st.stop()
 
-# --- Nonhuman filter ---
+# --- Nonhuman filter (global toggle) ---
 nonhuman_emails = load_nonhuman_emails(start_date, end_date)
-filter_nonhuman = st.checkbox(
-    f"Exclude nonhuman addresses ({len(nonhuman_emails)} detected)",
-    value=True, key="p15_filter_nonhuman",
-)
+filter_nonhuman = st.session_state.get("exclude_nonhuman", True)
 if filter_nonhuman and nonhuman_emails:
     nh_list = list(nonhuman_emails)
     graph_metrics = graph_metrics.filter(~pl.col("email").is_in(nh_list))
