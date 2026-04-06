@@ -28,15 +28,15 @@ MESSAGE_TOP = 500  # max per page (Graph API allows up to 999 but 500 is safer)
 class GraphConfig:
     """Azure AD app registration credentials."""
     tenant_id: str
-    client_id: str
-    client_secret: str
+    app_id: str
+    app_secret: str
 
 
 def _get_access_token(config: GraphConfig) -> str:
     """Acquire an access token using MSAL client credentials flow."""
     app = msal.ConfidentialClientApplication(
-        client_id=config.client_id,
-        client_credential=config.client_secret,
+        client_id=config.app_id,
+        client_credential=config.app_secret,
         authority=f"https://login.microsoftonline.com/{config.tenant_id}",
     )
     result = app.acquire_token_for_client(
