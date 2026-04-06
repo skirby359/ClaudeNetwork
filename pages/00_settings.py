@@ -233,8 +233,8 @@ with st.expander("Setup Instructions", expanded=False):
     Create a `.env.local` file in the project root (it's gitignored):
     ```
     MS_TENANT_ID=your-tenant-id-here
-    MS_CLIENT_ID=your-client-id-here
-    MS_CLIENT_SECRET=your-secret-here
+    MS_APP_ID=your-app-id-here
+    MS_APP_SECRET=your-secret-here
     ```
 
     The app loads these automatically. You can also paste them below manually.
@@ -242,8 +242,8 @@ with st.expander("Setup Instructions", expanded=False):
 
 # Load credentials: .env.local > environment variables > manual UI input
 _env_tenant = os.environ.get("MS_TENANT_ID", "")
-_env_client = os.environ.get("MS_CLIENT_ID", "")
-_env_secret = os.environ.get("MS_CLIENT_SECRET", "")
+_env_client = os.environ.get("MS_APP_ID", "")
+_env_secret = os.environ.get("MS_APP_SECRET", "")
 
 if _env_tenant and _env_client and _env_secret:
     st.success("Microsoft credentials loaded from environment / `.env.local`")
@@ -257,13 +257,13 @@ with col_ms_a:
         type="default",
     )
     ms_client = st.text_input(
-        "Client ID (Application ID)",
-        value=st.session_state.get("_ms_client_id", _env_client),
-        key="ms_client_input",
+        "Application (App) ID",
+        value=st.session_state.get("_ms_app_id", _env_client),
+        key="ms_app_id_input",
     )
     ms_secret = st.text_input(
-        "Client Secret",
-        value=st.session_state.get("_ms_client_secret", _env_secret),
+        "App Secret",
+        value=st.session_state.get("_ms_app_secret", _env_secret),
         key="ms_secret_input",
         type="password",
     )
@@ -285,9 +285,9 @@ with col_ms_b:
 if ms_tenant:
     st.session_state._ms_tenant_id = ms_tenant
 if ms_client:
-    st.session_state._ms_client_id = ms_client
+    st.session_state._ms_app_id = ms_client
 if ms_secret:
-    st.session_state._ms_client_secret = ms_secret
+    st.session_state._ms_app_secret = ms_secret
 
 # Connection test + user list
 ms_col1, ms_col2 = st.columns(2)
@@ -296,7 +296,7 @@ with ms_col1:
     if st.button("Test Connection", disabled=not (ms_tenant and ms_client and ms_secret)):
         try:
             from src.ingest.msgraph import GraphConfig, list_users
-            gc = GraphConfig(tenant_id=ms_tenant, client_id=ms_client, client_secret=ms_secret)
+            gc = GraphConfig(tenant_id=ms_tenant, app_id=ms_client, app_secret=ms_secret)
             with st.spinner("Connecting to Microsoft Graph..."):
                 users = list_users(gc)
             st.success(f"Connected. Found **{len(users)} users** with mailboxes.")
@@ -321,7 +321,7 @@ with ms_col2:
             from src.ingest.msgraph import GraphConfig, run_graph_ingestion
             from src.cache_manager import write_parquet
 
-            gc = GraphConfig(tenant_id=ms_tenant, client_id=ms_client, client_secret=ms_secret)
+            gc = GraphConfig(tenant_id=ms_tenant, app_id=ms_client, app_secret=ms_secret)
 
             since = None
             if ms_since_days > 0:
