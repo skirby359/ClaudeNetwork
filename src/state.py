@@ -459,10 +459,14 @@ def load_filtered_broadcast(start_date: dt.date, end_date: dt.date) -> pl.DataFr
 
 @st.cache_data(show_spinner="Computing network for selected dates...", ttl=3600)
 def load_filtered_graph_metrics(start_date: dt.date, end_date: dt.date) -> pl.DataFrame:
-    """Shared cached graph metrics for date-filtered data. Used by pages 06, 07, 09."""
+    """Shared cached graph metrics for date-filtered data. Used by pages 06, 07, 09.
+
+    Pre-filters nonhuman addresses and uses resolution=0.5 for cleaner communities.
+    """
     ef = load_filtered_edge_fact(start_date, end_date)
+    nonhuman = load_nonhuman_emails(start_date, end_date)
     G = build_graph(ef)
-    return compute_node_metrics(G)
+    return compute_node_metrics(G, exclude_emails=set(nonhuman))
 
 
 @st.cache_data(show_spinner="Analyzing pairs for selected dates...", ttl=3600)

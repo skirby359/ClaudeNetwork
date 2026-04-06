@@ -116,7 +116,15 @@ comm_size_map = dict(zip(
     comm_counts["community_id"].to_list(),
     comm_counts["n"].to_list(),
 ))
-comm_labels = {c: f"C{c} ({comm_size_map.get(c, 0)})" for c in valid_communities}
+# Use auto-generated labels from community detection if available
+if "community_label" in graph_metrics.columns:
+    _label_lookup = dict(zip(
+        graph_metrics["community_id"].to_list(),
+        graph_metrics["community_label"].to_list(),
+    ))
+    comm_labels = {c: _label_lookup.get(c, f"Group {c} ({comm_size_map.get(c, 0)})") for c in valid_communities}
+else:
+    comm_labels = {c: f"Group {c} ({comm_size_map.get(c, 0)})" for c in valid_communities}
 
 # --- Internal / External selector ---
 scope_tab = st.radio(

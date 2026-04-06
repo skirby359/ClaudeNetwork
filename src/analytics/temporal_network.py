@@ -44,7 +44,7 @@ def build_monthly_snapshots(edge_fact: pl.DataFrame) -> dict[str, pl.DataFrame]:
 
         # Community detection
         G_und = G.to_undirected()
-        partition = community_louvain.best_partition(G_und, weight="weight")
+        partition = community_louvain.best_partition(G_und, weight="weight", resolution=0.5)
 
         records = []
         for node in G.nodes():
