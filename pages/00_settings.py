@@ -177,7 +177,174 @@ else:
 st.divider()
 
 # =========================================================================
-# Section 4: Apply Settings & Reload
+# Section 4: Microsoft 365 Connector
+# =========================================================================
+st.header("Microsoft 365 Connector")
+st.caption(
+    "Pull email metadata directly from Microsoft 365 using the Graph API. "
+    "Uses **Mail.ReadBasic.All** permission — can read headers (Date, From, To, Size) "
+    "but **cannot access email bodies**. Enforced at the API level."
+)
+
+with st.expander("Setup Instructions", expanded=False):
+    st.markdown("""
+    ### How to set up Microsoft 365 access
+
+    **You need:** Admin access to your Microsoft 365 / Azure AD tenant.
+
+    **Step 1: Register an app in Azure AD**
+    1. Go to [Azure Portal > App Registrations](https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade)
+    2. Click **New registration**
+    3. Name: `Email Analytics` (or any name)
+    4. Supported account types: **Single tenant**
+    5. Redirect URI: leave blank (not needed for app-only auth)
+    6. Click **Register**
+
+    **Step 2: Add API permissions**
+    1. In your new app, go to **API permissions**
+    2. Click **Add a permission** > **Microsoft Graph** > **Application permissions**
+    3. Search for `Mail.ReadBasic.All` and check it
+    4. Click **Add permissions**
+    5. Click **Grant admin consent for [your org]** (requires Global Admin)
+
+    **Step 3: Create a client secret**
+    1. Go to **Certificates & secrets**
+    2. Click **New client secret**
+    3. Set expiry (recommend 12 months)
+    4. **Copy the secret value immediately** (you can't see it again)
+
+    **Step 4: Note your IDs**
+    - **Tenant ID**: found on the app's Overview page
+    - **Client ID** (Application ID): found on the app's Overview page
+    - **Client Secret**: the value you just copied
+
+    Paste all three below and click **Test Connection**.
+    """)
+
+col_ms_a, col_ms_b = st.columns(2)
+with col_ms_a:
+    ms_tenant = st.text_input(
+        "Tenant ID",
+        value=st.session_state.get("_ms_tenant_id", ""),
+        key="ms_tenant_input",
+        type="default",
+    )
+    ms_client = st.text_input(
+        "Client ID (Application ID)",
+        value=st.session_state.get("_ms_client_id", ""),
+        key="ms_client_input",
+    )
+    ms_secret = st.text_input(
+        "Client Secret",
+        value=st.session_state.get("_ms_client_secret", ""),
+        key="ms_secret_input",
+        type="password",
+    )
+
+with col_ms_b:
+    st.markdown("**Fetch Options**")
+    ms_since_days = st.number_input(
+        "Fetch messages from last N days (0 = all)",
+        min_value=0, max_value=3650, value=365,
+        key="ms_since_days",
+    )
+    ms_max_per_user = st.number_input(
+        "Max messages per user",
+        min_value=1000, max_value=500000, value=50000,
+        key="ms_max_per_user",
+    )
+
+# Save credentials to session state
+if ms_tenant:
+    st.session_state._ms_tenant_id = ms_tenant
+if ms_client:
+    st.session_state._ms_client_id = ms_client
+if ms_secret:
+    st.session_state._ms_client_secret = ms_secret
+
+# Connection test + user list
+ms_col1, ms_col2 = st.columns(2)
+
+with ms_col1:
+    if st.button("Test Connection", disabled=not (ms_tenant and ms_client and ms_secret)):
+        try:
+            from src.ingest.msgraph import GraphConfig, list_users
+            gc = GraphConfig(tenant_id=ms_tenant, client_id=ms_client, client_secret=ms_secret)
+            with st.spinner("Connecting to Microsoft Graph..."):
+                users = list_users(gc)
+            st.success(f"Connected. Found **{len(users)} users** with mailboxes.")
+            st.session_state._ms_users = users
+            # Show first 20
+            if users:
+                user_display = pl.DataFrame(users).head(20)
+                st.dataframe(user_display.to_pandas(), width="stretch")
+                if len(users) > 20:
+                    st.caption(f"Showing 20 of {len(users)} users.")
+        except Exception as e:
+            st.error(f"Connection failed: {e}")
+
+with ms_col2:
+    if st.button(
+        "Fetch Email Metadata",
+        type="primary",
+        disabled=not (ms_tenant and ms_client and ms_secret),
+    ):
+        try:
+            import datetime as _dt
+            from src.ingest.msgraph import GraphConfig, run_graph_ingestion
+            from src.cache_manager import write_parquet
+
+            gc = GraphConfig(tenant_id=ms_tenant, client_id=ms_client, client_secret=ms_secret)
+
+            since = None
+            if ms_since_days > 0:
+                since = _dt.datetime.now() - _dt.timedelta(days=ms_since_days)
+
+            progress = st.progress(0, text="Starting fetch...")
+
+            def _progress(frac, text):
+                progress.progress(min(frac, 1.0), text=text)
+
+            with st.spinner("Fetching email metadata from Microsoft 365..."):
+                df = run_graph_ingestion(
+                    gc,
+                    since=since,
+                    max_per_user=ms_max_per_user,
+                    progress_callback=_progress,
+                )
+
+            progress.empty()
+
+            if len(df) == 0:
+                st.warning("No messages retrieved. Check date range and permissions.")
+            else:
+                # Save as parquet in data directory
+                out_path = config.data_dir / "microsoft365_messages.parquet"
+                config.data_dir.mkdir(parents=True, exist_ok=True)
+                write_parquet(df, out_path)
+
+                # Also save as the message_fact cache directly
+                cache_path = config.cache_path(config.message_fact_file)
+                write_parquet(df, cache_path)
+
+                st.success(f"Fetched **{len(df):,} messages** from {df['from_email'].n_unique():,} senders.")
+                st.info("Click **Reload Pipeline** below to process the data.")
+
+                # Auto-detect internal domains
+                all_emails = df["from_email"].unique().to_list()
+                detected = AppConfig.detect_internal_domains(all_emails)
+                if detected:
+                    st.session_state._internal_domains = detected
+                    st.write(f"Auto-detected internal domains: **{', '.join(detected)}**")
+
+        except Exception as e:
+            st.error(f"Fetch failed: {e}")
+            st.exception(e)
+
+st.divider()
+
+# =========================================================================
+# Section 5: Apply Settings & Reload
 # =========================================================================
 st.header("Apply & Reload")
 
