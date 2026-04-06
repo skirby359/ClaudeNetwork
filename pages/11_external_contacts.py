@@ -8,6 +8,8 @@ from src.state import (
     load_person_dim,
     render_date_filter, load_filtered_edge_fact,
 )
+from src.export import download_csv_button
+from src.drilldown import handle_plotly_person_click, handle_dataframe_person_click
 
 st.set_page_config(page_title="External Contacts", layout="wide")
 st.title("External Contacts")
@@ -18,10 +20,15 @@ st.markdown("Identifies the most active **external** email addresses — people 
 start_date, end_date = render_date_filter()
 
 edge_fact = load_filtered_edge_fact(start_date, end_date)
+
+if len(edge_fact) == 0:
+    st.warning("No data in selected date range.")
+    st.stop()
+
 person_dim = load_person_dim()
 
 external = person_dim.filter(~pl.col("is_internal"))
-external_emails = external["email"].to_list()
+external_lookup = external.select(["email", "domain"])
 
 # KPIs
 total_people = len(person_dim)
@@ -41,7 +48,7 @@ st.subheader("Top External Senders")
 st.markdown("External addresses that send the most email **into** the organization.")
 
 external_senders = (
-    edge_fact.filter(pl.col("from_email").is_in(external_emails))
+    edge_fact.join(external_lookup, left_on="from_email", right_on="email", how="semi")
     .group_by("from_email")
     .agg([
         pl.len().alias("msgs_sent"),
@@ -58,8 +65,10 @@ fig = px.bar(top_ext_senders, x="from_email", y="msgs_sent",
              hover_data=["unique_recipients", "total_bytes"],
              title=f"Top {top_n} External Senders")
 fig.update_layout(height=450, xaxis_tickangle=-45)
-st.plotly_chart(fig, width="stretch")
-st.dataframe(top_ext_senders, width="stretch")
+ev_snd = st.plotly_chart(fig, width="stretch", on_select="rerun", key="p11_snd_bar")
+handle_plotly_person_click(ev_snd, "p11_snd_bar", start_date, end_date)
+ev_snd_df = st.dataframe(top_ext_senders, width="stretch", on_select="rerun", selection_mode="single-row", key="p11_snd_df")
+handle_dataframe_person_click(ev_snd_df, top_ext_senders, "p11_snd_df", "from_email", start_date, end_date)
 
 # --- Top external RECEIVERS (internal → external) ---
 st.divider()
@@ -67,7 +76,7 @@ st.subheader("Top External Receivers")
 st.markdown("External addresses that receive the most email **from** the organization.")
 
 external_receivers = (
-    edge_fact.filter(pl.col("to_email").is_in(external_emails))
+    edge_fact.join(external_lookup, left_on="to_email", right_on="email", how="semi")
     .group_by("to_email")
     .agg([
         pl.len().alias("msgs_received"),
@@ -83,19 +92,18 @@ fig2 = px.bar(top_ext_receivers, x="to_email", y="msgs_received",
               hover_data=["unique_senders", "total_bytes"],
               title=f"Top {top_n} External Receivers")
 fig2.update_layout(height=450, xaxis_tickangle=-45)
-st.plotly_chart(fig2, width="stretch")
-st.dataframe(top_ext_receivers, width="stretch")
+ev_rcv = st.plotly_chart(fig2, width="stretch", on_select="rerun", key="p11_rcv_bar")
+handle_plotly_person_click(ev_rcv, "p11_rcv_bar", start_date, end_date)
+ev_rcv_df = st.dataframe(top_ext_receivers, width="stretch", on_select="rerun", selection_mode="single-row", key="p11_rcv_df")
+handle_dataframe_person_click(ev_rcv_df, top_ext_receivers, "p11_rcv_df", "to_email", start_date, end_date)
 
 # --- Top external domains ---
 st.divider()
 st.subheader("Top External Domains")
 
-external_with_domain = external.select(["email", "domain"])
-
-# Sent by domain
+# Sent by domain — join to get domain, then aggregate
 domain_sent = (
-    edge_fact.filter(pl.col("from_email").is_in(external_emails))
-    .join(external_with_domain, left_on="from_email", right_on="email", how="left")
+    edge_fact.join(external_lookup, left_on="from_email", right_on="email", how="inner")
     .group_by("domain")
     .agg(pl.len().alias("msgs_sent"))
     .sort("msgs_sent", descending=True)
@@ -103,8 +111,7 @@ domain_sent = (
 
 # Received by domain
 domain_recv = (
-    edge_fact.filter(pl.col("to_email").is_in(external_emails))
-    .join(external_with_domain, left_on="to_email", right_on="email", how="left")
+    edge_fact.join(external_lookup, left_on="to_email", right_on="email", how="inner")
     .group_by("domain")
     .agg(pl.len().alias("msgs_received"))
     .sort("msgs_received", descending=True)
@@ -129,3 +136,6 @@ with col1:
 
 with col2:
     st.dataframe(domain_stats.head(30).to_pandas(), width="stretch")
+
+download_csv_button(external_senders, "external_senders.csv", "Download External Senders")
+download_csv_button(external_receivers, "external_receivers.csv", "Download External Receivers")

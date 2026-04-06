@@ -1,4 +1,4 @@
-"""Page 12: Search — Look up any email address and see their contacts."""
+"""Page 12: Search — Look up any email address and see their comprehensive profile."""
 
 import streamlit as st
 import plotly.express as px
@@ -8,7 +8,36 @@ from src.state import (
     load_person_dim,
     render_date_filter,
     load_filtered_edge_fact, load_filtered_message_fact,
+    load_filtered_graph_metrics,
 )
+from src.analytics.timing_analytics import compute_burstiness
+from src.analytics.anomaly import detect_sender_anomalies
+from src.export import download_csv_button
+from src.drilldown import (
+    handle_plotly_person_click, handle_dataframe_person_click,
+)
+
+
+# ---------------------------------------------------------------------------
+# Cached analytics
+# ---------------------------------------------------------------------------
+
+@st.cache_data(show_spinner=False, ttl=3600)
+def _cached_person_burstiness(start_date, end_date, email):
+    mf = load_filtered_message_fact(start_date, end_date)
+    return compute_burstiness(mf.filter(pl.col("from_email") == email), top_n=1)
+
+
+@st.cache_data(show_spinner=False, ttl=3600)
+def _cached_sender_anomalies(start_date, end_date):
+    ef = load_filtered_edge_fact(start_date, end_date)
+    pd_dim = load_person_dim()
+    return detect_sender_anomalies(ef, pd_dim)
+
+
+# ---------------------------------------------------------------------------
+# Page layout
+# ---------------------------------------------------------------------------
 
 st.set_page_config(page_title="Search", layout="wide")
 st.title("Email Address Search")
@@ -19,8 +48,11 @@ edge_fact = load_filtered_edge_fact(start_date, end_date)
 message_fact = load_filtered_message_fact(start_date, end_date)
 person_dim = load_person_dim()
 
+# Pre-populate from query_params (e.g. linked from drill-down dialog)
+default_query = st.query_params.get("email", "")
+
 # Search input
-query = st.text_input("Enter an email address (or partial match)", placeholder="e.g. bhopp@spokanecounty.org")
+query = st.text_input("Enter an email address (or partial match)", value=default_query, placeholder="e.g. bhopp@spokanecounty.org")
 
 if not query.strip():
     st.info("Type an email address above to see their communication profile.")
@@ -66,85 +98,136 @@ with c5:
     label = "Internal" if person_row["is_internal"] else "External"
     st.metric("Type", label)
 
-# --- Sent TO (who does this person email?) ---
+# --- Volume Timeline (sent + received per week) ---
 st.divider()
-st.subheader("Sent To")
-st.markdown(f"People that **{selected}** sends email to.")
+st.subheader("Volume Timeline")
+
+sent_weekly = (
+    message_fact.filter(pl.col("from_email") == selected)
+    .group_by("week_id")
+    .agg([pl.len().alias("sent"), pl.col("timestamp").min().alias("week_start")])
+)
+recv_weekly = (
+    edge_fact.filter(pl.col("to_email") == selected)
+    .group_by("week_id")
+    .agg([pl.len().alias("received"), pl.col("timestamp").min().alias("week_start")])
+)
+
+if len(sent_weekly) > 0 or len(recv_weekly) > 0:
+    timeline = sent_weekly.join(recv_weekly.drop("week_start"), on="week_id", how="full", coalesce=True)
+    timeline = timeline.with_columns([
+        pl.col("sent").fill_null(0),
+        pl.col("received").fill_null(0),
+    ]).sort("week_start")
+    timeline_pd = timeline.to_pandas()
+    fig_timeline = px.line(timeline_pd, x="week_start", y=["sent", "received"],
+                           title="Weekly Send/Receive Volume")
+    fig_timeline.update_layout(height=300)
+    st.plotly_chart(fig_timeline, width="stretch")
+
+# --- Top 10 Contacts (send + receive) ---
+st.divider()
+st.subheader("Top 10 Contacts")
 
 sent_to = (
     edge_fact.filter(pl.col("from_email") == selected)
     .group_by("to_email")
-    .agg([
-        pl.len().alias("msg_count"),
-        pl.col("size_bytes").sum().alias("total_bytes"),
-    ])
-    .sort("msg_count", descending=True)
+    .agg(pl.len().alias("sent_to"))
 )
-
-if len(sent_to) > 0:
-    col1, col2 = st.columns([2, 1])
-    with col1:
-        top_sent = sent_to.head(20).to_pandas()
-        fig = px.bar(top_sent, x="to_email", y="msg_count",
-                     title=f"Top Recipients (of mail from {selected.split('@')[0]})")
-        fig.update_layout(height=400, xaxis_tickangle=-45)
-        st.plotly_chart(fig, width="stretch")
-    with col2:
-        st.write(f"**{len(sent_to)} unique recipients**")
-        st.dataframe(sent_to.to_pandas(), width="stretch", height=400)
-else:
-    st.write("No outgoing messages found in selected date range.")
-
-# --- Received FROM (who emails this person?) ---
-st.divider()
-st.subheader("Received From")
-st.markdown(f"People who send email **to {selected}**.")
-
 received_from = (
     edge_fact.filter(pl.col("to_email") == selected)
     .group_by("from_email")
-    .agg([
-        pl.len().alias("msg_count"),
-        pl.col("size_bytes").sum().alias("total_bytes"),
-    ])
-    .sort("msg_count", descending=True)
+    .agg(pl.len().alias("received_from"))
+    .rename({"from_email": "to_email"})
 )
 
-if len(received_from) > 0:
-    col1, col2 = st.columns([2, 1])
-    with col1:
-        top_recv = received_from.head(20).to_pandas()
-        fig2 = px.bar(top_recv, x="from_email", y="msg_count",
-                      title=f"Top Senders (to {selected.split('@')[0]})")
-        fig2.update_layout(height=400, xaxis_tickangle=-45)
-        st.plotly_chart(fig2, width="stretch")
-    with col2:
-        st.write(f"**{len(received_from)} unique senders**")
-        st.dataframe(received_from.to_pandas(), width="stretch", height=400)
-else:
-    st.write("No incoming messages found in selected date range.")
+contacts = sent_to.join(received_from, on="to_email", how="full", coalesce=True)
+contacts = contacts.with_columns([
+    pl.col("sent_to").fill_null(0),
+    pl.col("received_from").fill_null(0),
+    (pl.col("sent_to").fill_null(0) + pl.col("received_from").fill_null(0)).alias("total"),
+]).sort("total", descending=True).rename({"to_email": "contact"})
 
-# --- Activity over time ---
+if len(contacts) > 0:
+    top_contacts = contacts.head(10).to_pandas()
+    fig_contacts = px.bar(top_contacts, x="contact", y=["sent_to", "received_from"],
+                          title="Top 10 Contacts (Messages Exchanged)", barmode="stack")
+    fig_contacts.update_layout(height=350, xaxis_tickangle=-45)
+    ev_contacts = st.plotly_chart(fig_contacts, width="stretch", on_select="rerun", key="p12_contacts")
+    handle_plotly_person_click(ev_contacts, "p12_contacts", start_date, end_date, field="x")
+    download_csv_button(contacts.head(50), f"contacts_{selected.split('@')[0]}.csv")
+
+# --- Community & Co-Members ---
 st.divider()
-st.subheader("Activity Over Time")
+st.subheader("Community Membership")
+try:
+    graph_metrics = load_filtered_graph_metrics(start_date, end_date)
+    person_gm = graph_metrics.filter(pl.col("email") == selected)
+    if len(person_gm) > 0:
+        comm_id = person_gm["community_id"][0]
+        st.write(f"**Community ID:** {comm_id}")
+        co_members = graph_metrics.filter(
+            (pl.col("community_id") == comm_id) & (pl.col("email") != selected)
+        ).sort("pagerank", descending=True)
+        st.write(f"**Co-members:** {len(co_members)}")
+        if len(co_members) > 0:
+            co_pd = co_members.head(20).select(["email", "pagerank", "in_degree", "out_degree"]).to_pandas()
+            ev_comembers = st.dataframe(co_pd, width="stretch", on_select="rerun", selection_mode="single-row", key="p12_comembers")
+            handle_dataframe_person_click(ev_comembers, co_pd, "p12_comembers", "email", start_date, end_date)
+    else:
+        st.info("Person not found in current network graph.")
+except Exception:
+    st.info("Graph metrics not available for this date range.")
+
+# --- Behavioral Metrics ---
+st.divider()
+st.subheader("Behavioral Metrics")
 
 person_msgs = message_fact.filter(pl.col("from_email") == selected)
+
 if len(person_msgs) > 0:
-    weekly = (
-        person_msgs.group_by("week_id")
-        .agg([
-            pl.len().alias("sent_count"),
-            pl.col("timestamp").min().alias("week_start"),
-        ])
-        .sort("week_start")
-        .to_pandas()
-    )
-    fig3 = px.bar(weekly, x="week_start", y="sent_count",
-                  title=f"Weekly Send Volume for {selected.split('@')[0]}")
-    fig3.update_layout(height=300)
-    st.plotly_chart(fig3, width="stretch")
+    col_a, col_b, col_c = st.columns(3)
+    with col_a:
+        ah_rate = float(person_msgs["is_after_hours"].mean())
+        st.metric("After-Hours Rate", f"{ah_rate:.1%}")
+    with col_b:
+        we_rate = float(person_msgs["is_weekend"].mean())
+        st.metric("Weekend Rate", f"{we_rate:.1%}")
+    with col_c:
+        # Burstiness (cached)
+        burstiness = _cached_person_burstiness(start_date, end_date, selected)
+        if len(burstiness) > 0:
+            b_score = burstiness["burstiness"][0]
+            st.metric("Burstiness", f"{b_score:.2f}")
+        else:
+            st.metric("Burstiness", "N/A")
+
+# --- Anomaly Flags (cached) ---
+st.divider()
+st.subheader("Anomaly Flags")
+try:
+    anomalies = _cached_sender_anomalies(start_date, end_date)
+    person_anomaly = anomalies.filter(pl.col("from_email") == selected)
+    if len(person_anomaly) > 0:
+        row = person_anomaly.row(0, named=True)
+        st.warning("This person has been flagged as anomalous.")
+        ac1, ac2, ac3, ac4 = st.columns(4)
+        with ac1:
+            st.metric("Volume Z-Score", f"{row['total_sent_zscore']:.1f}")
+        with ac2:
+            st.metric("Recipients Z-Score", f"{row['unique_recipients_zscore']:.1f}")
+        with ac3:
+            st.metric("After-Hours Z-Score", f"{row['after_hours_rate_zscore']:.1f}")
+        with ac4:
+            st.metric("Weekend Z-Score", f"{row['weekend_rate_zscore']:.1f}")
+    else:
+        st.success("No anomaly flags for this person.")
+except Exception:
+    st.info("Anomaly detection not available.")
 
 # --- Hour of day pattern ---
+st.divider()
+st.subheader("Activity by Hour")
 if len(person_msgs) > 0:
     hourly = (
         person_msgs.group_by("hour")
@@ -153,6 +236,6 @@ if len(person_msgs) > 0:
         .to_pandas()
     )
     fig4 = px.bar(hourly, x="hour", y="count",
-                  title=f"Send Pattern by Hour of Day")
+                  title="Send Pattern by Hour of Day")
     fig4.update_layout(height=300, xaxis=dict(dtick=1))
     st.plotly_chart(fig4, width="stretch")

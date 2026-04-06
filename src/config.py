@@ -49,11 +49,35 @@ class AppConfig:
     def cache_path(self, filename: str) -> Path:
         return self.cache_dir / filename
 
+    def csv_cache_path(self, csv_path: Path) -> Path:
+        """Return per-file chunk cache path: cache/chunk_{stem}.parquet."""
+        return self.cache_dir / f"chunk_{csv_path.stem}.parquet"
+
     def discover_csv_files(self) -> list[Path]:
         """Find all CSV files in the data directory, sorted by name."""
         if not self.data_dir.exists():
             return []
         return sorted(self.data_dir.glob("*.csv"))
+
+    def discover_datasets(self) -> dict[str, list[Path]]:
+        """Discover named datasets: subdirectories of data/ containing CSVs.
+
+        Returns dict mapping dataset name to list of CSV paths.
+        Top-level CSVs in data/ become the 'default' dataset.
+        """
+        datasets = {}
+        # Top-level CSVs
+        top_csvs = sorted(self.data_dir.glob("*.csv"))
+        if top_csvs:
+            datasets["default"] = top_csvs
+        # Subdirectories
+        if self.data_dir.exists():
+            for subdir in sorted(self.data_dir.iterdir()):
+                if subdir.is_dir():
+                    csvs = sorted(subdir.glob("*.csv"))
+                    if csvs:
+                        datasets[subdir.name] = csvs
+        return datasets
 
     @property
     def default_dataset(self) -> DatasetConfig:

@@ -12,7 +12,15 @@ st.set_page_config(
 from src.state import (
     get_config, run_full_pipeline, load_person_dim,
     render_date_filter, load_filtered_message_fact,
+    render_dataset_selector, load_message_fact,
+    _check_data_changed,
 )
+from src.analytics.data_quality import compute_quality_metrics, compute_per_file_stats
+from src.export import download_csv_button
+from src.ingest.pipeline import get_last_ingestion_stats
+
+# Detect data file changes before anything else
+_check_data_changed()
 
 st.title("Email Metadata Analytics Platform")
 st.markdown("**Organizational communication pattern analysis from email headers**")
@@ -20,6 +28,10 @@ st.markdown("**Organizational communication pattern analysis from email headers*
 # Sidebar info
 with st.sidebar:
     st.header("Dataset Info")
+
+    # Multi-dataset selector
+    render_dataset_selector()
+
     config = get_config()
     dataset = config.default_dataset
     csv_files = dataset.csv_paths
@@ -31,7 +43,15 @@ with st.sidebar:
     st.write(f"**Internal domains:** {', '.join(dataset.internal_domains)}")
 
     if st.button("Reload Pipeline", type="primary"):
+        st.cache_resource.clear()
         st.cache_data.clear()
+        st.session_state.pop("date_range", None)
+        st.session_state.pop("_date_selection", None)
+        st.session_state.pop("data_fingerprint", None)
+        # Remove disk cache files
+        for f in config.cache_dir.iterdir():
+            if f.suffix in (".parquet", ".pickle"):
+                f.unlink(missing_ok=True)
         st.rerun()
 
 # Run pipeline on first load
@@ -63,11 +83,33 @@ try:
         except Exception:
             st.metric("Date Range", "N/A")
 
+    # Data quality sidebar expander
+    with st.sidebar:
+        with st.expander("Data Quality"):
+            full_mf = load_message_fact()
+            quality = compute_quality_metrics(full_mf)
+            st.write(f"**Total messages:** {quality['total_messages']:,}")
+            st.write(f"**Zero-size:** {quality['zero_size_count']:,} ({quality['zero_size_pct']:.1%})")
+            st.write(f"**Missing names:** {quality['missing_name_count']:,} ({quality['missing_name_pct']:.1%})")
+
+            # Per-file ingestion stats
+            ingestion_stats = get_last_ingestion_stats()
+            if ingestion_stats:
+                file_stats = compute_per_file_stats(ingestion_stats)
+                st.write("**Per-file stats:**")
+                st.dataframe(file_stats.to_pandas(), width="stretch")
+
+        with st.expander("Export Data"):
+            st.caption("Download the core datasets as CSV files.")
+            download_csv_button(message_fact, "message_fact.csv", "Download Messages")
+            ef = load_filtered_message_fact(start_date, end_date)
+            download_csv_button(person_dim, "person_dim.csv", "Download People")
+
     st.divider()
     st.markdown("""
     ### Navigate the Analysis
 
-    Use the sidebar to explore the 10 analysis pages:
+    Use the sidebar to explore the 20 analysis pages:
 
     1. **Executive Summary** — Key findings at a glance
     2. **Volume & Seasonality** — Message flow trends over time
@@ -81,6 +123,14 @@ try:
     10. **Risk Register** — Anomalies and flags
     11. **External Contacts** — Top external addresses by volume
     12. **Search** — Look up any email address
+    13. **Response Time** — Reply detection and speed metrics
+    14. **Hierarchy Inference** — Leadership pattern detection
+    15. **Silos & Bridges** — Inter-community analysis
+    16. **Temporal Evolution** — How the network changes over time
+    17. **Size Forensics** — Email size patterns and anomalies
+    18. **Data Quality** — Completeness, gaps, and ingestion stats
+    19. **Narrative Insights** — Auto-generated executive narrative
+    20. **Period Comparison** — Side-by-side period analysis
     """)
 
 except Exception as e:

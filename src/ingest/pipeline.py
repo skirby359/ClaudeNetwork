@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from pathlib import Path
+from typing import Callable
 
 import polars as pl
 
@@ -11,6 +12,15 @@ from src.ingest.csv_parser import parse_csv
 from src.ingest.size_parser import parse_size
 from src.ingest.email_parser import parse_email_address, parse_recipients
 from src.ingest.normalizer import normalize_email, normalize_name
+
+
+# Module-level storage for per-file ingestion stats
+_last_ingestion_stats: list[dict] = []
+
+
+def get_last_ingestion_stats() -> list[dict]:
+    """Return per-file error/row counts from the most recent ingestion run."""
+    return list(_last_ingestion_stats)
 
 
 def _parse_timestamp(date_str: str, fmt: str) -> datetime | None:
@@ -102,13 +112,24 @@ def _ingest_single_csv(csv_path: Path, dataset: DatasetConfig, start_msg_id: int
     return df, msg_id, parse_errors
 
 
-def run_ingestion(config: AppConfig = None, dataset: DatasetConfig = None) -> pl.DataFrame:
+def run_ingestion(
+    config: AppConfig = None,
+    dataset: DatasetConfig = None,
+    progress_callback: Callable[[float, str], None] | None = None,
+) -> pl.DataFrame:
     """Run the full ingestion pipeline across all CSV files.
 
     Auto-discovers CSVs from dataset.csv_paths, parses each, and combines
-    into a single message_fact.parquet. Uses cache if all source files are
-    older than the cache.
+    into a single message_fact.parquet. Uses per-file chunk caching:
+    only re-parses CSVs whose chunk cache is stale or missing.
+
+    Args:
+        config: Application config.
+        dataset: Dataset config.
+        progress_callback: Optional callback(fraction, filename) for progress reporting.
     """
+    global _last_ingestion_stats
+
     if config is None:
         config = AppConfig()
     if dataset is None:
@@ -121,23 +142,51 @@ def run_ingestion(config: AppConfig = None, dataset: DatasetConfig = None) -> pl
         print("No CSV files found in data directory")
         return pl.DataFrame()
 
-    # Check cache freshness against ALL source CSVs and the data directory
+    # Check if the combined cache is fresh against ALL source CSVs
     if is_cache_fresh(cache_path, *csv_paths, config.data_dir):
         return pl.read_parquet(cache_path)
 
     dfs = []
-    total_errors = 0
+    stats = []
     next_id = 0
+    total_files = len(csv_paths)
 
-    for csv_path in csv_paths:
+    for i, csv_path in enumerate(csv_paths):
+        chunk_cache = config.csv_cache_path(csv_path)
+
+        if progress_callback:
+            progress_callback(i / total_files, csv_path.name)
+
+        # Per-file chunk caching: skip re-parse if chunk is fresh
+        if is_cache_fresh(chunk_cache, csv_path):
+            chunk_df = pl.read_parquet(chunk_cache)
+            if len(chunk_df) > 0:
+                # Re-number msg_ids to be contiguous
+                chunk_df = chunk_df.with_columns(
+                    (pl.lit(next_id) + pl.arange(0, pl.len())).cast(pl.Int64).alias("msg_id")
+                )
+                next_id += len(chunk_df)
+                dfs.append(chunk_df)
+            stats.append({"file": csv_path.name, "rows": len(chunk_df), "errors": 0, "cached": True})
+            print(f"  {csv_path.name}: {len(chunk_df)} messages (cached)")
+            continue
+
         print(f"Ingesting {csv_path.name}...")
         chunk_df, next_id, errors = _ingest_single_csv(csv_path, dataset, next_id)
+
         if len(chunk_df) > 0:
             dfs.append(chunk_df)
-        total_errors += errors
+            write_parquet(chunk_df, chunk_cache)
+
+        stats.append({"file": csv_path.name, "rows": len(chunk_df), "errors": errors, "cached": False})
         print(f"  {len(chunk_df)} messages, {errors} errors")
 
-    print(f"Ingestion complete: {next_id} total messages, {total_errors} total errors skipped")
+    if progress_callback:
+        progress_callback(1.0, "done")
+
+    _last_ingestion_stats = stats
+
+    print(f"Ingestion complete: {next_id} total messages, {sum(s['errors'] for s in stats)} total errors skipped")
 
     if not dfs:
         return pl.DataFrame()

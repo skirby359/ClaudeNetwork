@@ -25,9 +25,9 @@ def build_graph(edge_fact: pl.DataFrame) -> nx.DiGraph:
     froms = edge_weights["from_email"].to_list()
     tos = edge_weights["to_email"].to_list()
     weights = edge_weights["weight"].to_list()
-    bytes_list = edge_weights["total_bytes"].to_list()
-    for f, t, w, b in zip(froms, tos, weights, bytes_list):
-        G.add_edge(f, t, weight=w, total_bytes=b)
+    total_bytes = edge_weights["total_bytes"].to_list()
+    for f, t, w, tb in zip(froms, tos, weights, total_bytes):
+        G.add_edge(f, t, weight=w, total_bytes=tb)
     return G
 
 

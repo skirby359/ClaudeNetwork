@@ -11,6 +11,35 @@ from src.analytics.broadcast_analytics import (
     compute_high_blast_senders,
     compute_recipient_distribution,
 )
+from src.export import download_csv_button
+from src.drilldown import handle_plotly_person_click, handle_dataframe_person_click
+
+
+# ---------------------------------------------------------------------------
+# Cached analytics
+# ---------------------------------------------------------------------------
+
+@st.cache_data(show_spinner=False, ttl=3600)
+def _cached_blast_impact(start_date, end_date):
+    mf = load_filtered_message_fact(start_date, end_date)
+    return compute_blast_impact(mf)
+
+
+@st.cache_data(show_spinner=False, ttl=3600)
+def _cached_recipient_distribution(start_date, end_date):
+    mf = load_filtered_message_fact(start_date, end_date)
+    return compute_recipient_distribution(mf)
+
+
+@st.cache_data(show_spinner=False, ttl=3600)
+def _cached_high_blast_senders(start_date, end_date, threshold):
+    mf = load_filtered_message_fact(start_date, end_date)
+    return compute_high_blast_senders(mf, threshold=threshold)
+
+
+# ---------------------------------------------------------------------------
+# Page layout
+# ---------------------------------------------------------------------------
 
 st.set_page_config(page_title="Broadcast & Attention", layout="wide")
 st.title("Broadcast & Attention")
@@ -20,9 +49,13 @@ start_date, end_date = render_date_filter()
 message_fact = load_filtered_message_fact(start_date, end_date)
 broadcast = load_filtered_broadcast(start_date, end_date)
 
-# Blast tier breakdown
+if len(message_fact) == 0:
+    st.warning("No data in selected date range.")
+    st.stop()
+
+# Blast tier breakdown (cached)
 st.subheader("Message Tiers by Recipient Count")
-tiers = compute_blast_impact(message_fact).to_pandas()
+tiers = _cached_blast_impact(start_date, end_date).to_pandas()
 col1, col2 = st.columns(2)
 
 with col1:
@@ -41,7 +74,7 @@ st.dataframe(tiers, width="stretch")
 # Recipient distribution
 st.divider()
 st.subheader("Recipient Count Distribution")
-dist = compute_recipient_distribution(message_fact).to_pandas()
+dist = _cached_recipient_distribution(start_date, end_date).to_pandas()
 fig3 = px.bar(dist.head(30), x="n_recipients", y="msg_count",
               title="Messages by Number of Recipients (top 30 buckets)")
 fig3.update_layout(height=350)
@@ -57,9 +90,11 @@ st.plotly_chart(fig4, width="stretch")
 st.divider()
 st.subheader("High-Blast Senders")
 threshold = st.slider("Blast threshold (min recipients)", 5, 50, 10)
-blasters = compute_high_blast_senders(message_fact, threshold=threshold).to_pandas()
+blasters = _cached_high_blast_senders(start_date, end_date, threshold).to_pandas()
 st.write(f"**{len(blasters)} senders** have sent messages to >{threshold} recipients")
-st.dataframe(blasters.head(30), width="stretch")
+blasters_top = blasters.head(30)
+ev_blasters = st.dataframe(blasters_top, width="stretch", on_select="rerun", selection_mode="single-row", key="p04_blasters_df")
+handle_dataframe_person_click(ev_blasters, blasters_top, "p04_blasters_df", "from_email", start_date, end_date)
 
 # Per-sender broadcast profile
 st.divider()
@@ -68,4 +103,8 @@ top_bc = broadcast.head(20).to_pandas()
 fig5 = px.bar(top_bc, x="from_email", y="avg_recipients",
               title="Average Recipients per Message (Top 20 by Volume)")
 fig5.update_layout(height=400, xaxis_tickangle=-45)
-st.plotly_chart(fig5, width="stretch")
+ev_broadcast = st.plotly_chart(fig5, width="stretch", on_select="rerun", key="p04_broadcast")
+handle_plotly_person_click(ev_broadcast, "p04_broadcast", start_date, end_date)
+
+st.divider()
+download_csv_button(broadcast, "broadcast_profiles.csv", "Download Broadcast Data")

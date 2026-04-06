@@ -35,15 +35,17 @@ def compute_burstiness(message_fact: pl.DataFrame, top_n: int = 50) -> pl.DataFr
     Burstiness B = (σ - μ) / (σ + μ) where σ, μ are the std and mean of
     inter-message intervals. B ∈ [-1, 1]: B>0 = bursty, B<0 = periodic, B≈0 = random.
     """
-    top_senders = (
+    sender_counts = (
         message_fact.group_by("from_email")
-        .agg(pl.len().alias("count"))
-        .sort("count", descending=True)
-        .head(top_n)["from_email"]
+        .agg(pl.len().alias("msg_count"))
+        .sort("msg_count", descending=True)
+        .head(top_n)
     )
 
+    top_sender_list = sender_counts["from_email"].to_list()
+
     filtered = (
-        message_fact.filter(pl.col("from_email").is_in(top_senders.to_list()))
+        message_fact.filter(pl.col("from_email").is_in(top_sender_list))
         .sort(["from_email", "timestamp"])
     )
 
@@ -78,12 +80,8 @@ def compute_burstiness(message_fact: pl.DataFrame, top_n: int = 50) -> pl.DataFr
         (pl.col("std_interval") / 3600).alias("std_interval_hours"),
     ])
 
-    # Add original message counts
-    msg_counts = (
-        filtered.group_by("from_email")
-        .agg(pl.len().alias("msg_count"))
-    )
-    result = result.join(msg_counts, on="from_email", how="left")
+    # Reuse the pre-computed sender_counts instead of re-aggregating
+    result = result.join(sender_counts, on="from_email", how="left")
 
     return (
         result.select(["from_email", "burstiness", "mean_interval_hours", "std_interval_hours", "msg_count"])

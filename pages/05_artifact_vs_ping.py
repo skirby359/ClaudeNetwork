@@ -8,6 +8,37 @@ import polars as pl
 from src.state import (
     render_date_filter, load_filtered_message_fact,
 )
+from src.drilldown import handle_plotly_person_click
+
+
+# ---------------------------------------------------------------------------
+# Cached analytics
+# ---------------------------------------------------------------------------
+
+@st.cache_data(show_spinner=False, ttl=3600)
+def _cached_classify(start_date, end_date, ping_kb, artifact_kb):
+    mf = load_filtered_message_fact(start_date, end_date)
+    return mf.with_columns([
+        pl.when(pl.col("size_bytes") < ping_kb * 1024).then(pl.lit("ping"))
+        .when(pl.col("size_bytes") >= artifact_kb * 1024).then(pl.lit("artifact"))
+        .otherwise(pl.lit("standard"))
+        .alias("msg_type"),
+    ])
+
+
+@st.cache_data(show_spinner=False, ttl=3600)
+def _cached_hourly_size(start_date, end_date):
+    mf = load_filtered_message_fact(start_date, end_date)
+    return (
+        mf.group_by("hour")
+        .agg(pl.col("size_bytes").mean().alias("avg_size"))
+        .sort("hour")
+    )
+
+
+# ---------------------------------------------------------------------------
+# Page layout
+# ---------------------------------------------------------------------------
 
 st.set_page_config(page_title="Artifact vs Ping", layout="wide")
 st.title("Artifact vs Ping")
@@ -23,6 +54,10 @@ start_date, end_date = render_date_filter()
 
 message_fact = load_filtered_message_fact(start_date, end_date)
 
+if len(message_fact) == 0:
+    st.warning("No data in selected date range.")
+    st.stop()
+
 # Size distribution
 st.subheader("Message Size Distribution")
 size_kb = (message_fact["size_bytes"] / 1024).to_numpy()
@@ -37,12 +72,7 @@ st.plotly_chart(fig, width="stretch")
 ping_threshold = st.slider("Ping threshold (KB)", 1, 20, 5)
 artifact_threshold = st.slider("Artifact threshold (KB)", 20, 200, 50)
 
-classified = message_fact.with_columns([
-    pl.when(pl.col("size_bytes") < ping_threshold * 1024).then(pl.lit("ping"))
-    .when(pl.col("size_bytes") >= artifact_threshold * 1024).then(pl.lit("artifact"))
-    .otherwise(pl.lit("standard"))
-    .alias("msg_type"),
-])
+classified = _cached_classify(start_date, end_date, ping_threshold, artifact_threshold)
 
 # Breakdown
 st.subheader("Message Type Breakdown")
@@ -63,7 +93,8 @@ with col2:
     ping_senders = type_by_sender.filter(pl.col("msg_type") == "ping").head(10).to_pandas()
     fig3 = px.bar(ping_senders, x="from_email", y="count", title="Top Ping Senders")
     fig3.update_layout(height=350, xaxis_tickangle=-45)
-    st.plotly_chart(fig3, width="stretch")
+    ev_ping = st.plotly_chart(fig3, width="stretch", on_select="rerun", key="p05_ping")
+    handle_plotly_person_click(ev_ping, "p05_ping", start_date, end_date)
 
 # Size vs Recipients scatter
 st.divider()
@@ -78,12 +109,7 @@ st.plotly_chart(fig4, width="stretch")
 # Average size by hour
 st.divider()
 st.subheader("Average Message Size by Hour")
-hourly_size = (
-    message_fact.group_by("hour")
-    .agg(pl.col("size_bytes").mean().alias("avg_size"))
-    .sort("hour")
-    .to_pandas()
-)
+hourly_size = _cached_hourly_size(start_date, end_date).to_pandas()
 fig5 = px.bar(hourly_size, x="hour", y="avg_size", title="Average Message Size by Hour")
 fig5.update_layout(height=350, xaxis=dict(dtick=1), yaxis_title="Avg Size (bytes)")
 st.plotly_chart(fig5, width="stretch")

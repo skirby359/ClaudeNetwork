@@ -24,22 +24,31 @@ def compute_volume_trends(weekly_agg: pl.DataFrame) -> pl.DataFrame:
         pl.col("total_bytes").rolling_mean(window_size=4).alias("bytes_4wk_avg"),
     ])
 
-    # Week-over-week change
+    # Week-over-week change (guard against division by zero producing Inf)
     df = df.with_columns([
         (pl.col("msg_count") - pl.col("msg_count").shift(1)).alias("msg_count_wow_change"),
-        ((pl.col("msg_count") - pl.col("msg_count").shift(1))
-         / pl.col("msg_count").shift(1) * 100).alias("msg_count_wow_pct"),
+        pl.when(pl.col("msg_count").shift(1) > 0)
+        .then((pl.col("msg_count") - pl.col("msg_count").shift(1))
+              / pl.col("msg_count").shift(1) * 100)
+        .otherwise(None)
+        .alias("msg_count_wow_pct"),
     ])
 
     return df
 
 
+def _sender_counts(edge_fact: pl.DataFrame) -> pl.DataFrame:
+    """Shared sender count aggregation (sorted descending)."""
+    return (
+        edge_fact.group_by("from_email")
+        .agg(pl.len().alias("count"))
+        .sort("count", descending=True)
+    )
+
+
 def compute_sender_concentration(edge_fact: pl.DataFrame) -> dict:
     """Compute concentration metrics for senders."""
-    sent_counts = edge_fact.group_by("from_email").agg(
-        pl.len().alias("count")
-    ).sort("count", descending=True)
-
+    sent_counts = _sender_counts(edge_fact)
     counts = sent_counts["count"].to_numpy()
     total = counts.sum()
 
@@ -60,13 +69,9 @@ def compute_sender_concentration(edge_fact: pl.DataFrame) -> dict:
 
 
 def compute_top_n(edge_fact: pl.DataFrame, n: int = 20) -> dict:
-    """Get top-N senders and receivers."""
-    top_senders = (
-        edge_fact.group_by("from_email")
-        .agg(pl.len().alias("sent_count"))
-        .sort("sent_count", descending=True)
-        .head(n)
-    )
+    """Get top-N senders and receivers. Reuses shared sender aggregation."""
+    sent_counts = _sender_counts(edge_fact)
+    top_senders = sent_counts.head(n).rename({"count": "sent_count"})
 
     top_receivers = (
         edge_fact.group_by("to_email")

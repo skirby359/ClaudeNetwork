@@ -39,18 +39,15 @@ def detect_sender_anomalies(
         ])
     )
 
-    # Z-scores for each metric
+    # Z-scores for each metric — batch all columns in one with_columns call
+    zscore_cols = []
     for col_name in ["total_sent", "unique_recipients", "after_hours_rate", "weekend_rate"]:
         values = sender_stats[col_name].to_numpy().astype(float)
         if len(values) > 3:
-            z = stats.zscore(values)
-            sender_stats = sender_stats.with_columns(
-                pl.Series(f"{col_name}_zscore", z)
-            )
+            zscore_cols.append(pl.Series(f"{col_name}_zscore", stats.zscore(values)))
         else:
-            sender_stats = sender_stats.with_columns(
-                pl.lit(0.0).alias(f"{col_name}_zscore")
-            )
+            zscore_cols.append(pl.lit(0.0).alias(f"{col_name}_zscore"))
+    sender_stats = sender_stats.with_columns(zscore_cols)
 
     # Flag anomalies: anyone with any z-score exceeding threshold
     sender_stats = sender_stats.with_columns(
