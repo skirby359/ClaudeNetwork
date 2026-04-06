@@ -54,7 +54,7 @@ dyads = load_filtered_dyads(start_date, end_date)
 # --- Nonhuman filter (cached) ---
 nonhuman_emails = load_nonhuman_emails(start_date, end_date)
 
-filter_on = st.checkbox("Hide nonhuman addresses (copiers, bots, system accounts)", value=True)
+filter_on = st.session_state.get("exclude_nonhuman", True)
 
 if filter_on:
     dyads = dyads.filter(
