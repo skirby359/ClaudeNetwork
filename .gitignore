@@ -4,5 +4,8 @@ data/
 # Cache
 cache/
 
-# Environment
+# Environment / secrets
 .env
+.env.local
+.env.*
+*.secret

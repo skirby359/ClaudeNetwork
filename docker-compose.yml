@@ -6,6 +6,9 @@ services:
     volumes:
       - ./data:/app/data:ro
       - email-analytics-cache:/app/cache
+    env_file:
+      - path: .env.local
+        required: false
     restart: unless-stopped
 
 volumes:

@@ -1,5 +1,6 @@
 """Page 0: Settings — Data onboarding, internal domains, column mapping."""
 
+import os
 import shutil
 from pathlib import Path
 
@@ -8,6 +9,15 @@ import polars as pl
 
 from src.state import get_config, load_message_fact, load_person_dim
 from src.config import AppConfig
+
+# Load .env.local if it exists (for Microsoft credentials etc.)
+_env_path = Path(__file__).resolve().parent.parent / ".env.local"
+if _env_path.exists():
+    for line in _env_path.read_text().splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            key, _, value = line.partition("=")
+            os.environ.setdefault(key.strip(), value.strip())
 
 
 def _clear_all_caches(config: AppConfig):
@@ -218,25 +228,42 @@ with st.expander("Setup Instructions", expanded=False):
     - **Client ID** (Application ID): found on the app's Overview page
     - **Client Secret**: the value you just copied
 
-    Paste all three below and click **Test Connection**.
+    **Step 5: Store credentials securely**
+
+    Create a `.env.local` file in the project root (it's gitignored):
+    ```
+    MS_TENANT_ID=your-tenant-id-here
+    MS_CLIENT_ID=your-client-id-here
+    MS_CLIENT_SECRET=your-secret-here
+    ```
+
+    The app loads these automatically. You can also paste them below manually.
     """)
+
+# Load credentials: .env.local > environment variables > manual UI input
+_env_tenant = os.environ.get("MS_TENANT_ID", "")
+_env_client = os.environ.get("MS_CLIENT_ID", "")
+_env_secret = os.environ.get("MS_CLIENT_SECRET", "")
+
+if _env_tenant and _env_client and _env_secret:
+    st.success("Microsoft credentials loaded from environment / `.env.local`")
 
 col_ms_a, col_ms_b = st.columns(2)
 with col_ms_a:
     ms_tenant = st.text_input(
         "Tenant ID",
-        value=st.session_state.get("_ms_tenant_id", ""),
+        value=st.session_state.get("_ms_tenant_id", _env_tenant),
         key="ms_tenant_input",
         type="default",
     )
     ms_client = st.text_input(
         "Client ID (Application ID)",
-        value=st.session_state.get("_ms_client_id", ""),
+        value=st.session_state.get("_ms_client_id", _env_client),
         key="ms_client_input",
     )
     ms_secret = st.text_input(
         "Client Secret",
-        value=st.session_state.get("_ms_client_secret", ""),
+        value=st.session_state.get("_ms_client_secret", _env_secret),
         key="ms_secret_input",
         type="password",
     )

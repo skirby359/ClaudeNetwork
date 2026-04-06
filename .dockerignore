@@ -8,3 +8,6 @@ cache/
 *.md
 !README.md
 .env
+.env.local
+.env.*
+*.secret
