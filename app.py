@@ -37,14 +37,18 @@ with st.sidebar:
     render_anonymize_toggle()
 
     config = get_config()
-    dataset = config.default_dataset
-    csv_files = dataset.csv_paths
+    csv_files = config.discover_csv_files()
     st.write(f"**{len(csv_files)} CSV file{'s' if len(csv_files) != 1 else ''}** in `data/`")
     with st.expander("Files"):
         for f in csv_files:
             size_mb = f.stat().st_size / (1024 * 1024)
             st.write(f"- {f.name} ({size_mb:.0f} MB)")
-    st.write(f"**Internal domains:** {', '.join(dataset.internal_domains)}")
+    user_domains = st.session_state.get("_internal_domains", [])
+    if user_domains:
+        st.write(f"**Internal domains:** {', '.join(user_domains)}")
+    else:
+        st.caption("Internal domains: auto-detected (configure in Settings)")
+    st.page_link("pages/00_settings.py", label="Settings", icon=":material/settings:")
 
     if st.button("Reload Pipeline", type="primary"):
         st.cache_resource.clear()
@@ -113,7 +117,9 @@ try:
     st.markdown("""
     ### Navigate the Analysis
 
-    Use the sidebar to explore the 20 analysis pages:
+    Use the sidebar to explore the analysis pages. Start with **Settings** to configure your data.
+
+    0. **Settings** — Data upload, internal domains, column mapping
 
     1. **Executive Summary** — Key findings at a glance
     2. **Volume & Seasonality** — Message flow trends over time

@@ -14,7 +14,7 @@ class DatasetConfig:
     from_col: str = "From"
     to_col: str = "To"
     date_format: str = "%m/%d/%Y %H:%M"
-    internal_domains: list[str] = field(default_factory=lambda: ["spokanecounty.org"])
+    internal_domains: list[str] = field(default_factory=list)
     after_hours_start: int = 18  # 6 PM
     after_hours_end: int = 7     # 7 AM
     weekend_days: list[int] = field(default_factory=lambda: [5, 6])  # Sat, Sun
@@ -86,3 +86,26 @@ class AppConfig:
             name="all-data",
             csv_paths=csv_files,
         )
+
+    @staticmethod
+    def detect_internal_domains(person_emails: list[str], top_n: int = 3) -> list[str]:
+        """Auto-detect internal domains from the most common email domains."""
+        from collections import Counter
+        domains = []
+        for email in person_emails:
+            if "@" in email:
+                domains.append(email.split("@")[1].lower())
+        if not domains:
+            return []
+        counts = Counter(domains)
+        # Return the top N domains that together cover >50% of addresses,
+        # or just the top N most common
+        total = len(domains)
+        result = []
+        running = 0
+        for domain, count in counts.most_common(top_n):
+            result.append(domain)
+            running += count
+            if running / total > 0.5:
+                break
+        return result

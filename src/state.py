@@ -61,13 +61,26 @@ def get_config() -> AppConfig:
 
 
 def get_dataset() -> DatasetConfig:
-    """Get the current dataset configuration."""
+    """Get the current dataset configuration, including user-configured settings."""
     config = get_config()
     selected = st.session_state.get("_selected_dataset", "default")
     datasets = config.discover_datasets()
     if selected in datasets:
-        return DatasetConfig(name=selected, csv_paths=datasets[selected])
-    return config.default_dataset
+        ds = DatasetConfig(name=selected, csv_paths=datasets[selected])
+    else:
+        ds = config.default_dataset
+
+    # Apply user-configured internal domains
+    user_domains = st.session_state.get("_internal_domains")
+    if user_domains is not None:
+        ds.internal_domains = user_domains
+
+    # Apply user-configured date format
+    user_date_fmt = st.session_state.get("_date_format")
+    if user_date_fmt:
+        ds.date_format = user_date_fmt
+
+    return ds
 
 
 # ---------------------------------------------------------------------------
@@ -206,6 +219,66 @@ def apply_date_filter(
 
 
 # ---------------------------------------------------------------------------
+# Domain filter
+# ---------------------------------------------------------------------------
+
+def render_domain_filter(person_dim: pl.DataFrame) -> list[str] | None:
+    """Render a domain multi-select in the sidebar.
+
+    Returns list of selected domains, or None if 'All' is selected.
+    When domains are selected, pages should filter edge_fact/message_fact
+    to only include emails from/to those domains.
+    """
+    if "domain" not in person_dim.columns:
+        return None
+
+    domain_counts = (
+        person_dim.group_by("domain")
+        .agg(pl.len().alias("count"))
+        .sort("count", descending=True)
+    )
+    all_domains = domain_counts["domain"].to_list()
+
+    if len(all_domains) <= 1:
+        return None
+
+    with st.sidebar:
+        with st.expander("Domain Filter"):
+            select_all = st.checkbox("All domains", value=True, key="_domain_all")
+            if select_all:
+                return None
+
+            # Show domains with counts
+            options = [f"{d} ({c:,})" for d, c in zip(
+                domain_counts["domain"].to_list(),
+                domain_counts["count"].to_list(),
+            )]
+            selected = st.multiselect(
+                "Select domains to include",
+                options=options,
+                default=options[:3],
+                key="_domain_select",
+            )
+            # Extract domain names from "domain (count)" format
+            selected_domains = [s.rsplit(" (", 1)[0] for s in selected]
+            return selected_domains if selected_domains else None
+
+
+def apply_domain_filter(
+    df: pl.DataFrame,
+    domains: list[str] | None,
+    email_col: str = "from_email",
+) -> pl.DataFrame:
+    """Filter a DataFrame to only include rows where email_col's domain is in the list."""
+    if domains is None:
+        return df
+    domain_set = set(d.lower() for d in domains)
+    return df.filter(
+        pl.col(email_col).str.split("@").list.last().str.to_lowercase().is_in(list(domain_set))
+    )
+
+
+# ---------------------------------------------------------------------------
 # Comparison mode
 # ---------------------------------------------------------------------------
 
@@ -275,9 +348,10 @@ def load_edge_fact() -> pl.DataFrame:
 @st.cache_resource(show_spinner="Building person dimension...")
 def load_person_dim() -> pl.DataFrame:
     config = get_config()
+    dataset = get_dataset()
     message_fact = load_message_fact()
     edge_fact = load_edge_fact()
-    return build_person_dim(edge_fact, message_fact, config)
+    return build_person_dim(edge_fact, message_fact, config, dataset=dataset)
 
 
 @st.cache_resource(show_spinner="Computing weekly aggregations...")
