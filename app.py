@@ -1,6 +1,7 @@
 """Streamlit entry point for the Email Metadata Analytics Platform."""
 
 import streamlit as st
+import polars as pl
 
 st.set_page_config(
     page_title="Email Metadata Analytics",

@@ -188,24 +188,29 @@ selected_comm = st.selectbox(
     [comm_labels[c] for c in valid_communities],
     key="p15_comm_select",
 )
-# Extract community_id from the label "C{id} ({size})"
+# Extract community_id from the selected label
 if selected_comm:
-    comm_id_from_label = int(selected_comm.split("(")[0].strip()[1:])
-    if should_open_drilldown("p15_comm_viewer", comm_id_from_label):
+    # Reverse lookup: find comm_id whose label matches
+    comm_id_from_label = next(
+        (c for c in valid_communities if comm_labels.get(c) == selected_comm),
+        valid_communities[0] if valid_communities else None,
+    )
+    if comm_id_from_label is not None and should_open_drilldown("p15_comm_viewer", comm_id_from_label):
         show_community_dialog(comm_id_from_label, start_date, end_date)
 
     # Inline member table
-    comm_members = (
-        graph_metrics.filter(pl.col("community_id") == comm_id_from_label)
-        .join(person_dim.select(["email", "display_name"]), on="email", how="left")
-        .sort("pagerank", descending=True)
-    )
-    st.write(f"**{len(comm_members)} members** in {selected_comm}")
-    st.dataframe(
-        comm_members.select(["email", "display_name", "pagerank", "in_degree", "out_degree"])
-        .head(30).to_pandas(),
-        width="stretch", height=min(400, len(comm_members) * 35 + 40),
-    )
+    if comm_id_from_label is not None:
+        comm_members = (
+            graph_metrics.filter(pl.col("community_id") == comm_id_from_label)
+            .join(person_dim.select(["email", "display_name"]), on="email", how="left")
+            .sort("pagerank", descending=True)
+        )
+        st.write(f"**{len(comm_members)} members** in {selected_comm}")
+        st.dataframe(
+            comm_members.select(["email", "display_name", "pagerank", "in_degree", "out_degree"])
+            .head(30).to_pandas(),
+            width="stretch", height=min(400, len(comm_members) * 35 + 40),
+        )
 
 # --- Section 2: Communication silos ---
 st.divider()

@@ -39,14 +39,20 @@ def _person_metrics(start_date, end_date, email):
     # Average recipients per message
     avg_recipients = float(sent_msgs["n_recipients"].mean()) if len(sent_msgs) > 0 else 0.0
 
-    # Graph metrics
+    # Graph metrics — safe extraction helper
+    def _get(df, col, default=0):
+        if len(df) > 0 and col in df.columns:
+            val = df[col].to_list()[0]
+            return val if val is not None else default
+        return default
+
     node = gm.filter(pl.col("email") == email)
-    betweenness = float(node["betweenness_centrality"].to_list()[0]) if len(node) > 0 else 0.0
-    pagerank = float(node["pagerank"].to_list()[0]) if len(node) > 0 else 0.0
-    community_id = node["community_id"].to_list()[0] if len(node) > 0 else -1
-    community_label = node["community_label"].to_list()[0] if len(node) > 0 and "community_label" in node.columns else f"Group {community_id}"
-    in_degree = int(node["in_degree"].to_list()[0]) if len(node) > 0 else 0
-    out_degree = int(node["out_degree"].to_list()[0]) if len(node) > 0 else 0
+    betweenness = float(_get(node, "betweenness_centrality", 0.0))
+    pagerank = float(_get(node, "pagerank", 0.0))
+    community_id = _get(node, "community_id", -1)
+    community_label = _get(node, "community_label", f"Group {community_id}")
+    in_degree = int(_get(node, "in_degree", 0))
+    out_degree = int(_get(node, "out_degree", 0))
 
     # Reply time
     reply_median = None
@@ -83,8 +89,8 @@ def _person_metrics(start_date, end_date, email):
 
     # Display name and department
     name_row = pd_dim.filter(pl.col("email") == email)
-    display_name = name_row["display_name"].to_list()[0] if len(name_row) > 0 and "display_name" in name_row.columns else email
-    department = name_row["department"].to_list()[0] if len(name_row) > 0 and "department" in name_row.columns else "Unknown"
+    display_name = _get(name_row, "display_name", email) or email
+    department = _get(name_row, "department", "Unknown") or "Unknown"
 
     return {
         "email": email,
