@@ -7,7 +7,8 @@ import polars as pl
 from src.state import (
     render_date_filter,
     load_filtered_message_fact, load_filtered_edge_fact,
-    load_filtered_graph_metrics, load_nonhuman_emails,
+    load_filtered_graph_metrics, load_filtered_weekly_agg,
+    load_nonhuman_emails,
 )
 from src.analytics.health_score import compute_health_score, compute_health_trend
 from src.analytics.response_time import compute_reply_times

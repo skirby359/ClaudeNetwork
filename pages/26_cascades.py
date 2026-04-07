@@ -150,10 +150,11 @@ st.caption("Select a cascade to see the full forwarding chain.")
 
 if len(metrics) > 0:
     cascade_ids = metrics["cascade_id"].to_list()[:50]
+    depth_lookup = dict(zip(metrics["cascade_id"].to_list(), metrics["depth"].to_list()))
     selected_id = st.selectbox(
         "Select Cascade",
         cascade_ids,
-        format_func=lambda x: f"Cascade {x} (depth {metrics.filter(pl.col('cascade_id') == x)['depth'].to_list()[0]})",
+        format_func=lambda x: f"Cascade {x} (depth {depth_lookup.get(x, '?')})",
     )
 
     if selected_id is not None:
