@@ -135,7 +135,9 @@ try:
 
         with st.expander("Export Data"):
             st.caption("Download data in various formats.")
-            download_csv_button(message_fact, "message_fact.csv", "Download Messages (CSV)")
+            # Drop nested list columns that can't be serialized to CSV
+            mf_export = message_fact.drop([c for c in ("to_emails", "to_names") if c in message_fact.columns])
+            download_csv_button(mf_export, "message_fact.csv", "Download Messages (CSV)")
             download_csv_button(person_dim, "person_dim.csv", "Download People (CSV)")
 
             # PowerPoint export
