@@ -201,4 +201,7 @@ def _compute_nmi(labels1: np.ndarray, labels2: np.ndarray) -> float:
                 continue
             mi += (n_ij / n) * np.log((n * n_ij) / (row_sums[i] * col_sums[j]) + 1e-12)
 
-    return mi / np.sqrt(h1 * h2)
+    denom = np.sqrt(h1 * h2)
+    if denom < 1e-12:
+        return 0.0
+    return mi / denom

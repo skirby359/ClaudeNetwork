@@ -1,5 +1,7 @@
 """Organizational Health Score: composite 0-100 metric from communication patterns."""
 
+import datetime as dt
+
 import polars as pl
 import numpy as np
 
@@ -96,21 +98,16 @@ def compute_health_score(
 
     # 5. Cross-group flow (silo permeability)
     if len(graph_metrics) > 0 and "community_id" in graph_metrics.columns and len(edge_fact) > 0:
-        comm_lookup = dict(zip(
-            graph_metrics["email"].to_list(),
-            graph_metrics["community_id"].to_list(),
-        ))
-        # Sample edges for efficiency
-        sample = edge_fact.head(min(100000, len(edge_fact)))
-        cross = 0
-        total = 0
-        for row in sample.select(["from_email", "to_email"]).iter_rows():
-            f_comm = comm_lookup.get(row[0])
-            t_comm = comm_lookup.get(row[1])
-            if f_comm is not None and t_comm is not None:
-                total += 1
-                if f_comm != t_comm:
-                    cross += 1
+        # Use Polars joins instead of Python loop for cross-group calculation
+        comm_df = graph_metrics.select(["email", "community_id"])
+        sample = edge_fact.sample(min(100000, len(edge_fact))) if len(edge_fact) > 100000 else edge_fact
+        with_comms = (
+            sample.select(["from_email", "to_email"])
+            .join(comm_df.rename({"email": "from_email", "community_id": "from_comm"}), on="from_email", how="inner")
+            .join(comm_df.rename({"email": "to_email", "community_id": "to_comm"}), on="to_email", how="inner")
+        )
+        total = len(with_comms)
+        cross = len(with_comms.filter(pl.col("from_comm") != pl.col("to_comm")))
         cross_rate = cross / max(total, 1)
         # 30-50% cross-group is healthy
         if cross_rate >= 0.3:
@@ -160,3 +157,53 @@ def compute_health_score(
         "sub_scores": sub_scores,
         "weights": weights,
     }
+
+
+def compute_health_trend(
+    message_fact: pl.DataFrame,
+    edge_fact: pl.DataFrame,
+    graph_metrics: pl.DataFrame,
+) -> pl.DataFrame:
+    """Compute health score per month for trend visualization.
+
+    Returns DataFrame with month_id, composite, and each sub-score column.
+    """
+    if len(message_fact) == 0:
+        return pl.DataFrame({"month_id": [], "composite": []})
+
+    mf = message_fact.with_columns(
+        pl.col("timestamp").dt.strftime("%Y-%m").alias("month_id")
+    )
+    ef = edge_fact.with_columns(
+        pl.col("timestamp").dt.strftime("%Y-%m").alias("month_id")
+    )
+    months = sorted(mf["month_id"].unique().to_list())
+
+    records = []
+    for month in months:
+        mf_m = mf.filter(pl.col("month_id") == month)
+        ef_m = ef.filter(pl.col("month_id") == month)
+
+        if len(mf_m) < 10 or len(ef_m) < 10:
+            continue
+
+        # Reply time for this month
+        reply_median = None
+        try:
+            from src.analytics.response_time import compute_reply_times
+            rt = compute_reply_times(ef_m)
+            if len(rt) > 0:
+                reply_median = float(rt["median_reply_seconds"].median())
+        except Exception:
+            pass
+
+        health = compute_health_score(mf_m, ef_m, graph_metrics, reply_median)
+        row = {"month_id": month, "composite": health["composite"]}
+        for key, score in health["sub_scores"].items():
+            row[key] = score["value"]
+        records.append(row)
+
+    if not records:
+        return pl.DataFrame({"month_id": [], "composite": []})
+
+    return pl.DataFrame(records)

@@ -23,10 +23,30 @@ NONHUMAN_PATTERNS = [
 
 _NONHUMAN_RE = re.compile("|".join(NONHUMAN_PATTERNS), re.IGNORECASE)
 
+# Type classification patterns for automated senders
+_TYPE_PATTERNS = [
+    (r"(copier|scanner|ricoh|canon|ikon|xerox|konica|mfp|printer)", "Copier/Scanner"),
+    (r"(fax|rightfax)", "Fax"),
+    (r"(noreply|no[-_.]?reply|donotreply|do[-_.]?not[-_.]?reply)", "Notification"),
+    (r"(alert|hiplink|sourcefire|blueteam|scom|eventlog|p25radio)", "Alert/Monitoring"),
+    (r"(postmaster|mailer[-_.]?daemon|microsoftexchange|exchange329)", "Mail Infrastructure"),
+    (r"(automail|auto[-_.]?notify|auto[-_.]?response)", "Auto-Response"),
+    (r"(sql\.|flatfileprocess|importerror|_error@|adminisd|rsnadmin)", "System Process"),
+]
+_TYPE_COMPILED = [(re.compile(p, re.IGNORECASE), t) for p, t in _TYPE_PATTERNS]
+
 
 def is_likely_nonhuman(email: str) -> bool:
     """Check if an email address looks like a machine/system account."""
     return bool(_NONHUMAN_RE.search(email))
+
+
+def classify_nonhuman_type(email: str) -> str:
+    """Classify an automated address into a category."""
+    for pattern, type_name in _TYPE_COMPILED:
+        if pattern.search(email):
+            return type_name
+    return "Other Automated"
 
 
 def detect_nonhuman_addresses(person_dim: pl.DataFrame, edge_fact: pl.DataFrame) -> pl.DataFrame:

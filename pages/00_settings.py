@@ -42,6 +42,69 @@ st.title("Settings & Data Onboarding")
 config = get_config()
 
 # =========================================================================
+# Section 0: Engagement Profiles
+# =========================================================================
+st.header("Engagement Profiles")
+st.caption(
+    "Save and load per-client settings (internal domains, departments, thresholds, key dates). "
+    "Profiles persist across sessions so you can quickly reload a client's configuration."
+)
+
+from src.engagement import (
+    list_profiles, save_profile, load_profile, delete_profile,
+    collect_current_settings, apply_profile_to_session,
+)
+
+profiles = list_profiles()
+
+col_load, col_save = st.columns(2)
+
+with col_load:
+    st.subheader("Load Profile")
+    if profiles:
+        selected_profile = st.selectbox("Select profile", profiles, key="profile_select")
+        load_cols = st.columns(2)
+        with load_cols[0]:
+            if st.button("Load", type="primary"):
+                try:
+                    settings, dept_df = load_profile(selected_profile)
+                    apply_profile_to_session(settings, dept_df, st.session_state)
+                    st.success(f"Loaded profile: **{selected_profile}**")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Failed to load: {e}")
+        with load_cols[1]:
+            if st.button("Delete"):
+                delete_profile(selected_profile)
+                st.success(f"Deleted profile: **{selected_profile}**")
+                st.rerun()
+    else:
+        st.info("No saved profiles yet. Save your current settings below.")
+
+with col_save:
+    st.subheader("Save Current Settings")
+    org_name = st.text_input(
+        "Organization name",
+        value=st.session_state.get("_org_name", "Organization"),
+        key="org_name_input",
+    )
+    st.session_state._org_name = org_name
+
+    profile_name = st.text_input(
+        "Profile name",
+        value=org_name.lower().replace(" ", "_") if org_name else "default",
+        key="profile_name_input",
+    )
+    if st.button("Save Profile", type="primary"):
+        settings = collect_current_settings(st.session_state)
+        dept_df = st.session_state.get("_department_mapping")
+        save_profile(profile_name, settings, dept_df)
+        st.success(f"Saved profile: **{profile_name}**")
+        st.rerun()
+
+st.divider()
+
+# =========================================================================
 # Section 1: File Upload
 # =========================================================================
 st.header("Upload Data")
@@ -67,6 +130,101 @@ if uploaded_files:
     if saved:
         st.success(f"Saved {len(saved)} file(s): {', '.join(saved)}")
         st.info("Click **Reload Pipeline** below to ingest the new data.")
+
+st.divider()
+
+# =========================================================================
+# Section 1b: PST / MBOX Import
+# =========================================================================
+st.header("Import PST / MBOX Files")
+st.caption(
+    "Import email metadata from Outlook PST or Unix MBOX files. "
+    "Only headers (Date, From, To, Size) are read — message bodies are not accessed."
+)
+
+from src.ingest.mailbox_import import HAS_PST, detect_file_type, import_mbox, import_pst
+
+mailbox_files = st.file_uploader(
+    "Upload PST or MBOX files",
+    type=["pst", "mbox"],
+    accept_multiple_files=True,
+    key="mailbox_upload",
+)
+
+if not HAS_PST:
+    st.caption(
+        "PST support requires `libpff-python`. "
+        "Install with `pip install libpff-python` (MBOX works without it)."
+    )
+
+if mailbox_files:
+    for uploaded in mailbox_files:
+        # Save to temp location
+        import tempfile
+        tmp_dir = Path(tempfile.mkdtemp())
+        tmp_path = tmp_dir / uploaded.name
+        tmp_path.write_bytes(uploaded.getvalue())
+
+        file_type = detect_file_type(tmp_path)
+        if file_type is None:
+            st.error(f"Could not determine file type for {uploaded.name}.")
+            continue
+
+        progress = st.progress(0, text=f"Importing {uploaded.name}...")
+
+        def _progress(frac, name):
+            progress.progress(min(frac, 1.0), text=f"Importing {name}...")
+
+        try:
+            if file_type == "mbox":
+                df, _, errors = import_mbox(tmp_path, progress_callback=_progress)
+            elif file_type == "pst":
+                df, _, errors = import_pst(tmp_path, progress_callback=_progress)
+            else:
+                st.error(f"Unsupported file type: {file_type}")
+                continue
+
+            progress.empty()
+
+            if len(df) == 0:
+                st.warning(f"No messages extracted from {uploaded.name}.")
+            else:
+                # Save as parquet in data directory
+                from src.cache_manager import write_parquet
+                out_name = Path(uploaded.name).stem + ".parquet"
+                out_path = config.data_dir / out_name
+                config.data_dir.mkdir(parents=True, exist_ok=True)
+                write_parquet(df, out_path)
+
+                # Also write as CSV-compatible cache
+                cache_path = config.cache_path(config.message_fact_file)
+                if cache_path.exists():
+                    existing = pl.read_parquet(cache_path)
+                    df = df.with_columns(
+                        (pl.lit(len(existing)) + pl.arange(0, pl.len())).cast(pl.Int64).alias("msg_id")
+                    )
+                    df = pl.concat([existing, df])
+                write_parquet(df, cache_path)
+
+                st.success(
+                    f"Imported **{len(df):,} messages** from {uploaded.name} "
+                    f"({errors} parse errors skipped)."
+                )
+                st.info("Click **Reload Pipeline** below to refresh all analytics.")
+
+        except ImportError as e:
+            progress.empty()
+            st.error(str(e))
+        except Exception as e:
+            progress.empty()
+            st.error(f"Import failed: {e}")
+
+        # Clean up temp file
+        try:
+            tmp_path.unlink(missing_ok=True)
+            tmp_dir.rmdir()
+        except Exception:
+            pass
 
 st.divider()
 
@@ -130,6 +288,64 @@ else:
 st.divider()
 
 # =========================================================================
+# Section 2b: Department Enrichment
+# =========================================================================
+st.header("Department Enrichment")
+st.caption(
+    "Upload a CSV mapping email addresses to departments. "
+    "This adds a 'department' column to person data across all analytics pages."
+)
+
+dept_file = st.file_uploader(
+    "Upload department mapping CSV",
+    type=["csv"],
+    key="dept_upload",
+    help="CSV with columns: email, department (header row required)",
+)
+
+if dept_file:
+    try:
+        dept_df = pl.read_csv(dept_file)
+        # Normalize column names
+        cols_lower = {c: c.lower().strip() for c in dept_df.columns}
+        dept_df = dept_df.rename(cols_lower)
+
+        if "email" not in dept_df.columns or "department" not in dept_df.columns:
+            st.error("CSV must have 'email' and 'department' columns.")
+        else:
+            dept_df = dept_df.select(["email", "department"]).with_columns(
+                pl.col("email").str.to_lowercase().str.strip_chars()
+            )
+            st.session_state._department_mapping = dept_df
+            n_depts = dept_df["department"].n_unique()
+            st.success(
+                f"Loaded **{len(dept_df):,} mappings** across **{n_depts} departments**."
+            )
+            st.dataframe(
+                dept_df.group_by("department")
+                .agg(pl.len().alias("people"))
+                .sort("people", descending=True)
+                .to_pandas(),
+                use_container_width=True,
+            )
+    except Exception as e:
+        st.error(f"Failed to read CSV: {e}")
+
+# Show current mapping status
+dept_mapping = st.session_state.get("_department_mapping")
+if dept_mapping is not None and not dept_file:
+    n_mapped = len(dept_mapping)
+    n_depts = dept_mapping["department"].n_unique()
+    st.info(f"Department mapping active: **{n_mapped:,} people** across **{n_depts} departments**.")
+    if st.button("Clear department mapping"):
+        del st.session_state._department_mapping
+        st.rerun()
+elif dept_mapping is None and not dept_file:
+    st.info("No department mapping uploaded. Analytics will use email domain as a department proxy.")
+
+st.divider()
+
+# =========================================================================
 # Section 3: Column Mapping
 # =========================================================================
 st.header("CSV Column Mapping")
@@ -167,20 +383,78 @@ date_format = st.text_input(
 )
 st.session_state._date_format = date_format
 
-# Preview a CSV file
-st.subheader("CSV Preview")
+# Data Profiler
+st.subheader("Data Profiler")
+st.caption("Auto-detect file format, encoding, date format, and column mapping.")
 csv_files = config.discover_csv_files()
 if csv_files:
-    preview_file = st.selectbox("Select file to preview", [f.name for f in csv_files])
+    preview_file = st.selectbox("Select file to profile", [f.name for f in csv_files])
     if preview_file:
         file_path = config.data_dir / preview_file
-        try:
-            # Read first 5 lines raw
-            with open(file_path, "r", encoding="utf-8", errors="replace") as f:
-                lines = [f.readline() for _ in range(6)]
-            st.code("".join(lines), language="csv")
-        except Exception as e:
-            st.error(f"Could not read file: {e}")
+
+        from src.ingest.profiler import profile_csv
+        profile = profile_csv(file_path)
+
+        if "error" in profile:
+            st.error(profile["error"])
+        else:
+            # Detection results
+            det_cols = st.columns(4)
+            with det_cols[0]:
+                st.metric("Encoding", profile["encoding"])
+            with det_cols[1]:
+                st.metric("Delimiter", profile["delimiter_label"])
+            with det_cols[2]:
+                st.metric("Data Lines", f"{profile['n_data_lines']:,}")
+            with det_cols[3]:
+                st.metric("Columns", profile["n_columns"])
+
+            # Date format detection
+            if profile["date_format"]:
+                st.success(f"Date format detected: **{profile['date_format_label']}** (`{profile['date_format']}`)")
+                if st.button("Apply detected date format"):
+                    st.session_state._date_format = profile["date_format"]
+                    st.rerun()
+            else:
+                st.warning("Could not auto-detect date format. Configure manually above.")
+
+            # Column role detection
+            roles = profile["column_roles"]
+            header = profile["header"]
+            role_labels = []
+            for role_name, col_idx in roles.items():
+                if col_idx is not None and col_idx < len(header):
+                    role_labels.append(f"**{role_name.replace('_col', '').title()}**: column {col_idx} (`{header[col_idx]}`)")
+            if role_labels:
+                st.info("Detected columns: " + " | ".join(role_labels))
+
+            if profile["is_custom_format"]:
+                st.info(
+                    "This file appears to use the custom format where recipients spill "
+                    "across CSV columns. The built-in parser handles this automatically."
+                )
+
+            # Warnings
+            for w in profile["warnings"]:
+                st.warning(w)
+
+            # Sample data preview
+            with st.expander("Raw Data Preview", expanded=False):
+                try:
+                    with open(file_path, "r", encoding=profile["encoding"], errors="replace") as f:
+                        lines = [f.readline() for _ in range(6)]
+                    st.code("".join(lines), language="csv")
+                except Exception as e:
+                    st.error(f"Could not read file: {e}")
+
+            # Parsed sample preview
+            if profile["sample_rows"]:
+                with st.expander("Parsed Columns Preview", expanded=True):
+                    import pandas as pd
+                    display_header = profile["header"][:8]  # limit columns
+                    display_rows = [row[:8] for row in profile["sample_rows"][:10]]
+                    pdf = pd.DataFrame(display_rows, columns=display_header[:len(display_rows[0])] if display_rows else display_header)
+                    st.dataframe(pdf, use_container_width=True)
 else:
     st.info("No CSV files in data directory. Upload files above.")
 

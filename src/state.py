@@ -346,12 +346,41 @@ def load_edge_fact() -> pl.DataFrame:
 
 
 @st.cache_resource(show_spinner="Building person dimension...")
-def load_person_dim() -> pl.DataFrame:
+def _load_person_dim_base() -> pl.DataFrame:
     config = get_config()
     dataset = get_dataset()
     message_fact = load_message_fact()
     edge_fact = load_edge_fact()
     return build_person_dim(edge_fact, message_fact, config, dataset=dataset)
+
+
+def load_person_dim() -> pl.DataFrame:
+    """Load person dimension, enriched with department mapping if available."""
+    pd = _load_person_dim_base()
+
+    # Enrich with department mapping from session state
+    dept_mapping = st.session_state.get("_department_mapping")
+    if dept_mapping is not None:
+        # Drop existing department column if present to avoid conflict
+        if "department" in pd.columns:
+            pd = pd.drop("department")
+        pd = pd.join(
+            dept_mapping.with_columns(pl.col("email").str.to_lowercase()),
+            on="email",
+            how="left",
+        )
+        # Fall back to domain as department for unmapped people
+        pd = pd.with_columns(
+            pl.when(pl.col("department").is_not_null())
+            .then(pl.col("department"))
+            .otherwise(pl.col("domain"))
+            .alias("department")
+        )
+    elif "department" not in pd.columns:
+        # No mapping: use domain as department proxy
+        pd = pd.with_columns(pl.col("domain").alias("department"))
+
+    return pd
 
 
 @st.cache_resource(show_spinner="Computing weekly aggregations...")
@@ -419,8 +448,8 @@ def load_filtered_message_fact(start_date: dt.date, end_date: dt.date) -> pl.Dat
                 )
                 .collect()
             )
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Warning: predicate pushdown failed for message_fact: {e}")
     return apply_date_filter(load_message_fact(), start_date, end_date)
 
 
@@ -439,8 +468,8 @@ def load_filtered_edge_fact(start_date: dt.date, end_date: dt.date) -> pl.DataFr
                 )
                 .collect()
             )
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Warning: predicate pushdown failed for edge_fact: {e}")
     return apply_date_filter(load_edge_fact(), start_date, end_date)
 
 
