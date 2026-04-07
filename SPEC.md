@@ -6,10 +6,11 @@ Platform-agnostic email communication pattern analysis from metadata only (Date,
 
 ## Data Model
 
-### Input
+### Input Sources
 - **CSV files** with columns: Date, Size, From, To (configurable via column mapping)
 - **Microsoft Graph API** via Mail.ReadBasic.All scope (metadata only, body access blocked at API level)
-- **Future**: PST/MBOX import, Gmail API
+- **MBOX files** via Python's built-in mailbox module
+- **PST files** via optional pypff/libpff-python
 
 ### Core Tables (Polars DataFrames, cached as Parquet)
 
@@ -42,6 +43,7 @@ Platform-agnostic email communication pattern analysis from metadata only (Date,
 | is_distribution_list | Bool | Heuristic DL detection |
 | total_sent | Int64 | Messages sent |
 | total_received | Int64 | Messages received |
+| department | Utf8 | From CSV upload or domain fallback |
 
 **graph_metrics** — one row per person with network metrics
 | Column | Type | Description |
@@ -50,7 +52,8 @@ Platform-agnostic email communication pattern analysis from metadata only (Date,
 | in_degree | Int64 | Weighted incoming edges |
 | out_degree | Int64 | Weighted outgoing edges |
 | betweenness_centrality | Float64 | Bridge importance |
-| community_id | Int64 | Louvain community assignment |
+| community_id | Int64 | Community assignment |
+| community_label | Utf8 | Auto-generated label |
 | pagerank | Float64 | Network importance score |
 
 ## Analytics Modules (src/analytics/)
@@ -58,18 +61,55 @@ Platform-agnostic email communication pattern analysis from metadata only (Date,
 | Module | Key Functions | Input Tables |
 |--------|--------------|--------------|
 | volume.py | Gini, concentration, rolling averages | weekly_agg, edge_fact |
-| network.py | Graph build, PageRank, betweenness, communities, dyads | edge_fact |
+| network.py | Graph build, PageRank, betweenness, Louvain communities, dyads | edge_fact |
+| community_leiden.py | Leiden multi-resolution, type classification, hierarchy nesting | edge_fact |
 | timing_analytics.py | Heatmap, after-hours trends, burstiness, ping-pong | message_fact, edge_fact |
 | broadcast_analytics.py | Blast tiers, high-blast senders | message_fact |
 | anomaly.py | Z-score volume/sender anomalies | weekly_agg, edge_fact |
 | response_time.py | Reply detection (asof-join), per-person/dept stats | edge_fact |
-| hierarchy.py | Nonhuman detection, hierarchy score, reciprocal teams | edge_fact, person_dim |
+| hierarchy.py | Nonhuman detection + type classification, hierarchy score, reciprocal teams | edge_fact, person_dim |
 | silos.py | Community interaction matrix, bridges, removal simulation | edge_fact, graph_metrics |
 | temporal_network.py | Monthly snapshots, centrality trends, NMI stability | edge_fact |
+| structural_change.py | Split/merge/reorg classification, node switches, NMI alerts | edge_fact (monthly) |
+| compliance.py | Blackout windows, external spikes, key date gaps, after-hours clusters | message_fact, edge_fact |
+| cascade.py | Forwarding chain detection, cascade metrics, amplifier identification | edge_fact |
+| bus_factor.py | Articulation points, team bus factor, succession readiness, risk matrix | edge_fact, graph_metrics |
 | size_forensics.py | Size classes, templates, per-sender profiles, anomalies | message_fact |
 | data_quality.py | Zero-size, missing names, completeness | message_fact |
+| health_score.py | Composite 0-100 score (6 dimensions), monthly trend | message_fact, edge_fact, graph_metrics |
 | narrative.py | Auto-generated executive markdown | message_fact, weekly_agg, edge_fact, person_dim |
 | comparison.py | Period-over-period KPI deltas | message_fact, edge_fact |
+
+## Export Formats
+
+| Format | Module | Description |
+|--------|--------|-------------|
+| CSV | export.py | Per-table download with anonymization support |
+| Excel | export.py | XLSX via openpyxl |
+| GraphML | export.py | Network graph with node attributes for Gephi/yEd |
+| JSON | export.py | Network graph as nodes + edges for web visualization |
+| PowerPoint | export_pptx.py | Full branded report: KPIs, tables, communities, bridges |
+| HTML | export_html.py | Self-contained report with inline base64 chart images |
+| Executive Memo | export_memo.py | Short consulting deliverable: cover, KPIs, health, risks, recommendations |
+
+## Engagement Profile System
+
+Per-client settings saved as JSON in `profiles/` directory:
+- Internal domains, date format, column mapping
+- Department mapping (companion CSV)
+- Nonhuman toggle, key dates
+- Alert rules with configurable thresholds
+- Organization name
+
+## Alert Rules Engine
+
+6 default rules, each configurable per-engagement:
+- After-hours rate > threshold per person
+- Bus factor <= threshold per team
+- Communication blackout > N hours
+- External contact spike > N standard deviations
+- Concentration (Gini) > threshold
+- Health score < threshold
 
 ## Privacy Model
 
@@ -77,19 +117,21 @@ Platform-agnostic email communication pattern analysis from metadata only (Date,
 - **Microsoft Graph**: Uses Mail.ReadBasic.All — body access blocked at API level (returns 403)
 - **Anonymization toggle**: Replaces emails with deterministic user_XXXXXX@domain aliases
 - **Credentials**: Stored in .env.local (gitignored), loaded via environment variables
-- **Cache**: Parquet files on local disk (not encrypted — future improvement)
-- **Export**: CSV downloads respect anonymization toggle
+- **Cache**: Parquet files on local disk
+- **Export**: CSV/Excel/HTML downloads respect anonymization toggle
 
-## Community Detection (Current → Planned)
+## Data Intake
 
-**Current**: Louvain with default resolution on undirected graph. Over-fragments (628 communities on Spokane data).
+- **CSV**: Custom quote-aware parser handles malformed To fields with spilled recipients
+- **Data profiler**: Auto-detects encoding, delimiter, date format, column roles
+- **MBOX**: Native Python mailbox module, extracts Date/From/To/Cc/Size headers
+- **PST**: Optional pypff dependency, walks folder tree extracting transport headers
+- **Microsoft Graph**: App-only auth via MSAL, Mail.ReadBasic.All permission
 
-**Planned improvements**:
-1. Resolution parameter tuning (0.5 instead of 1.0)
-2. Pre-filter nonhuman addresses before detection
-3. Merge tiny communities (<3 members)
-4. Auto-label by central person + dominant domain
-5. Future: Leiden algorithm with multi-resolution hierarchical view
+## Community Detection
+
+- **Louvain** (default): Resolution 0.5, pre-filter nonhuman, merge tiny (<3 members), auto-label
+- **Leiden** (optional): Multi-resolution (coarse/medium/fine), type classification (pair/team/department/cross-functional), hierarchical nesting treemap
 
 ## Target Buyers
 
@@ -99,9 +141,10 @@ Platform-agnostic email communication pattern analysis from metadata only (Date,
 
 ## Tech Stack
 
-- **Data**: Polars, NetworkX, python-louvain, scipy
+- **Data**: Polars, NetworkX, python-louvain, leidenalg, igraph, scipy
 - **Dashboard**: Streamlit, Plotly, PyVis
+- **Exports**: python-pptx, kaleido (chart rendering), openpyxl
 - **Cache**: Parquet (mtime invalidation), pickle (graph objects)
-- **Auth connector**: MSAL (Microsoft), future: google-auth
+- **Auth**: MSAL (Microsoft Graph)
 - **Deployment**: Docker, docker-compose
-- **Testing**: pytest (84 tests)
+- **Testing**: pytest (181 tests — 89 unit + 59 integration + 33 coverage gap)
