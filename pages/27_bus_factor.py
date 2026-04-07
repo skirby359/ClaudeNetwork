@@ -5,6 +5,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import polars as pl
 
+from src.page_logger import log_page_entry, log_page_error
 from src.state import (
     render_date_filter, load_filtered_edge_fact, load_filtered_graph_metrics,
     load_nonhuman_emails, load_person_dim,
@@ -39,6 +40,7 @@ def _cached_bus_factor(start_date, end_date):
 
 
 st.set_page_config(page_title="Bus Factor", layout="wide")
+_page_log = log_page_entry("27_bus_factor")
 st.title("Key-Person Dependency / Bus Factor")
 st.caption(
     "Identifying critical personnel whose departure would disrupt organizational communication. "

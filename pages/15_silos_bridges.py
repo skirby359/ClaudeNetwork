@@ -5,6 +5,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import polars as pl
 
+from src.page_logger import log_page_entry, log_page_error
 from src.state import (
     load_person_dim,
     render_date_filter,
@@ -73,6 +74,7 @@ def _cached_simulate_removal(start_date, end_date, scope, email):
 # ---------------------------------------------------------------------------
 
 st.set_page_config(page_title="Silos & Bridges", layout="wide")
+_page_log = log_page_entry("15_silos_bridges")
 st.title("Communication Silos & Bridges")
 st.caption("Analyzing how communities interact — and where they don't.")
 

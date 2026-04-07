@@ -4,6 +4,7 @@ import streamlit as st
 import plotly.express as px
 import polars as pl
 
+from src.page_logger import log_page_entry, log_page_error
 from src.state import (
     render_date_filter, load_filtered_edge_fact,
     load_nonhuman_emails, load_person_dim,
@@ -28,6 +29,7 @@ def _cached_leiden(start_date, end_date):
 
 
 st.set_page_config(page_title="Community Detection v2", layout="wide")
+_page_log = log_page_entry("23_community_v2")
 st.title("Community Detection v2 (Leiden)")
 st.caption(
     "Multi-resolution community detection with type classification and hierarchy nesting."

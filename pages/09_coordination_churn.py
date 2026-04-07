@@ -6,6 +6,7 @@ import plotly.graph_objects as go
 import polars as pl
 import numpy as np
 
+from src.page_logger import log_page_entry, log_page_error
 from src.state import (
     load_person_dim,
     render_date_filter,
@@ -73,6 +74,7 @@ def _cached_weekly_senders(start_date, end_date):
 # ---------------------------------------------------------------------------
 
 st.set_page_config(page_title="Coordination & Churn", layout="wide")
+_page_log = log_page_entry("09_coordination_churn")
 st.title("Coordination & Churn")
 
 start_date, end_date = render_date_filter()

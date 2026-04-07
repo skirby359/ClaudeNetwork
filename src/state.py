@@ -2,9 +2,12 @@
 
 import datetime as dt
 import hashlib
+import logging
 
 import streamlit as st
 import polars as pl
+
+logger = logging.getLogger("state")
 
 from src.config import AppConfig, DatasetConfig
 from src.cache_manager import read_parquet, read_pickle
@@ -323,6 +326,7 @@ def render_comparison_filter(min_date: dt.date, max_date: dt.date) -> tuple[bool
 @st.cache_resource(show_spinner="Loading message data...")
 def load_message_fact() -> pl.DataFrame:
     config = get_config()
+    logger.info("Loading message_fact (full dataset)")
 
     # Show progress bar during ingestion
     progress_bar = st.progress(0, text="Loading data...")
@@ -335,6 +339,7 @@ def load_message_fact() -> pl.DataFrame:
 
     result = run_ingestion(config, progress_callback=_progress_cb)
     progress_bar.empty()
+    logger.info(f"message_fact loaded: {len(result):,} rows, cols={result.columns}")
     return result
 
 
@@ -342,7 +347,9 @@ def load_message_fact() -> pl.DataFrame:
 def load_edge_fact() -> pl.DataFrame:
     config = get_config()
     message_fact = load_message_fact()
-    return build_edge_fact(message_fact, config)
+    result = build_edge_fact(message_fact, config)
+    logger.info(f"edge_fact loaded: {len(result):,} rows")
+    return result
 
 
 @st.cache_resource(show_spinner="Building person dimension...")
@@ -356,6 +363,7 @@ def _load_person_dim_base() -> pl.DataFrame:
 
 def load_person_dim() -> pl.DataFrame:
     """Load person dimension, enriched with department mapping if available."""
+    logger.info("Loading person_dim (with department enrichment)")
     pd = _load_person_dim_base()
 
     # Enrich with department mapping from session state
@@ -492,10 +500,13 @@ def load_filtered_graph_metrics(start_date: dt.date, end_date: dt.date) -> pl.Da
 
     Pre-filters nonhuman addresses and uses resolution=0.5 for cleaner communities.
     """
+    logger.info(f"Computing graph metrics for {start_date} to {end_date}")
     ef = load_filtered_edge_fact(start_date, end_date)
     nonhuman = load_nonhuman_emails(start_date, end_date)
     G = build_graph(ef)
-    return compute_node_metrics(G, exclude_emails=set(nonhuman))
+    result = compute_node_metrics(G, exclude_emails=set(nonhuman))
+    logger.info(f"graph_metrics: {len(result)} nodes, {result['community_id'].n_unique()} communities")
+    return result
 
 
 @st.cache_data(show_spinner="Analyzing pairs for selected dates...", ttl=3600)

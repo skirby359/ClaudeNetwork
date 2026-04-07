@@ -4,6 +4,7 @@ import streamlit as st
 import plotly.graph_objects as go
 import polars as pl
 
+from src.page_logger import log_page_entry, log_page_error
 from src.state import (
     render_date_filter,
     load_filtered_message_fact, load_filtered_edge_fact,
@@ -50,6 +51,7 @@ def _cached_health(start_date, end_date):
 # ---------------------------------------------------------------------------
 
 st.set_page_config(page_title="Health Score", layout="wide")
+_page_log = log_page_entry("22_health_score")
 st.title("Organizational Health Score")
 st.caption(
     "A composite 0-100 score measuring communication health from six dimensions. "

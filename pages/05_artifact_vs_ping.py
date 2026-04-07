@@ -5,6 +5,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import polars as pl
 
+from src.page_logger import log_page_entry, log_page_error
 from src.state import (
     render_date_filter, load_filtered_message_fact,
 )
@@ -41,6 +42,7 @@ def _cached_hourly_size(start_date, end_date):
 # ---------------------------------------------------------------------------
 
 st.set_page_config(page_title="Artifact vs Ping", layout="wide")
+_page_log = log_page_entry("05_artifact_vs_ping")
 st.title("Artifact vs Ping")
 
 st.markdown("""

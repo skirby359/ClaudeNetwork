@@ -3,6 +3,9 @@
 import streamlit as st
 import polars as pl
 
+from src.log_config import setup_logging
+setup_logging()
+
 st.set_page_config(
     page_title="Email Metadata Analytics",
     page_icon="📧",

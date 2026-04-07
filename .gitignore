@@ -6,6 +6,9 @@ cache/
 __pycache__/
 *.pyc
 
+# Logs
+logs/
+
 # Engagement profiles (may contain client-specific settings)
 profiles/
 

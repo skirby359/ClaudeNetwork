@@ -5,6 +5,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import polars as pl
 
+from src.page_logger import log_page_entry, log_page_error
 from src.state import (
     render_date_filter, render_comparison_filter,
     load_message_fact,
@@ -48,6 +49,7 @@ def _cached_top_senders(start_date, end_date, n=15):
 # ---------------------------------------------------------------------------
 
 st.set_page_config(page_title="Period Comparison", layout="wide")
+_page_log = log_page_entry("20_comparison")
 st.title("Period Comparison")
 st.caption("Compare key metrics between two time periods side by side.")
 

@@ -6,6 +6,7 @@ import plotly.graph_objects as go
 import numpy as np
 import polars as pl
 
+from src.page_logger import log_page_entry, log_page_error
 from src.state import (
     render_date_filter,
     load_filtered_message_fact,
@@ -83,6 +84,7 @@ def _cached_auto_breakdown(start_date, end_date):
 # ---------------------------------------------------------------------------
 
 st.set_page_config(page_title="Automated Systems", layout="wide")
+_page_log = log_page_entry("21_automated_systems")
 st.title("Automated Systems Overview")
 st.caption(
     "Understanding the machines: what automated systems dominate your email, "
