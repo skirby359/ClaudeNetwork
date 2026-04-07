@@ -58,7 +58,7 @@ def resolve_imceaex(email: str) -> str:
     return email.lower()
 
 
-def parse_email_address(raw: str, default_domain: str = "spokanecounty.org") -> tuple[str, str]:
+def parse_email_address(raw: str, default_domain: str = "") -> tuple[str, str]:
     """Parse a single email token into (display_name, email).
 
     Returns (display_name, normalized_email).
@@ -104,6 +104,8 @@ def parse_email_address(raw: str, default_domain: str = "spokanecounty.org") -> 
 
 def _expand_short_host(email: str, default_domain: str) -> str:
     """Expand user@hostname to user@hostname.domain when hostname has no dots."""
+    if not default_domain:
+        return email
     m = _SHORT_HOST_RE.match(email)
     if m:
         return f"{m.group(1)}@{m.group(2)}.{default_domain}"
@@ -147,7 +149,7 @@ def split_recipients(to_blob: str) -> list[str]:
     return [t.strip() for t in to_blob.split(",") if t.strip()]
 
 
-def parse_recipients(to_blob: str, default_domain: str = "spokanecounty.org") -> list[tuple[str, str]]:
+def parse_recipients(to_blob: str, default_domain: str = "") -> list[tuple[str, str]]:
     """Parse a To blob into a list of (display_name, email) tuples.
 
     Handles undisclosed recipients by returning a sentinel address.
