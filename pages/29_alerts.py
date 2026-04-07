@@ -4,6 +4,7 @@ import streamlit as st
 import plotly.express as px
 import polars as pl
 
+from src.page_logger import log_page_entry, log_page_error
 from src.state import (
     render_date_filter, load_filtered_message_fact, load_filtered_edge_fact,
     load_filtered_graph_metrics, load_nonhuman_emails, load_person_dim,
@@ -72,6 +73,7 @@ def _cached_alerts(start_date, end_date, rules_json):
 
 
 st.set_page_config(page_title="Alert Dashboard", layout="wide")
+_page_log = log_page_entry("29_alerts")
 st.title("Alert Dashboard")
 st.caption("Configurable thresholds that flag communication risks across the organization.")
 

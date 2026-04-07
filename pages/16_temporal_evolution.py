@@ -5,6 +5,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import polars as pl
 
+from src.page_logger import log_page_entry, log_page_error
 from src.state import (
     render_date_filter,
     load_filtered_edge_fact,
@@ -44,6 +45,7 @@ def _cached_temporal_analysis(start_date, end_date):
 # ---------------------------------------------------------------------------
 
 st.set_page_config(page_title="Temporal Evolution", layout="wide")
+_page_log = log_page_entry("16_temporal_evolution")
 st.title("Temporal Network Evolution")
 
 start_date, end_date = render_date_filter()

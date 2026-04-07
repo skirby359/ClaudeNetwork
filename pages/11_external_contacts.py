@@ -4,6 +4,7 @@ import streamlit as st
 import plotly.express as px
 import polars as pl
 
+from src.page_logger import log_page_entry, log_page_error
 from src.state import (
     load_person_dim,
     render_date_filter, load_filtered_edge_fact,
@@ -12,6 +13,7 @@ from src.export import download_csv_button
 from src.drilldown import handle_plotly_person_click, handle_dataframe_person_click
 
 st.set_page_config(page_title="External Contacts", layout="wide")
+_page_log = log_page_entry("11_external_contacts")
 st.title("External Contacts")
 
 st.markdown("Identifies the most active **external** email addresses — people outside "

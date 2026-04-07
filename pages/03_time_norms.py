@@ -6,6 +6,7 @@ import plotly.graph_objects as go
 import numpy as np
 import polars as pl
 
+from src.page_logger import log_page_entry, log_page_error
 from src.state import (
     render_date_filter, load_filtered_message_fact,
     load_nonhuman_emails,
@@ -67,6 +68,7 @@ def _cached_hourly_volume(start_date, end_date, exclude_nonhuman):
 # ---------------------------------------------------------------------------
 
 st.set_page_config(page_title="Time Norms", layout="wide")
+_page_log = log_page_entry("03_time_norms")
 st.title("Time Norms")
 
 start_date, end_date = render_date_filter()

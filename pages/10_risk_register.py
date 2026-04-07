@@ -5,6 +5,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import polars as pl
 
+from src.page_logger import log_page_entry, log_page_error
 from src.state import (
     load_person_dim,
     render_date_filter,
@@ -50,6 +51,7 @@ def _cached_sender_anomalies(start_date, end_date, exclude_nonhuman, z_threshold
 # ---------------------------------------------------------------------------
 
 st.set_page_config(page_title="Risk Register", layout="wide")
+_page_log = log_page_entry("10_risk_register")
 st.title("Risk Register")
 
 st.markdown("""

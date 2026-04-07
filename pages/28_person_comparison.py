@@ -4,6 +4,7 @@ import streamlit as st
 import plotly.graph_objects as go
 import polars as pl
 
+from src.page_logger import log_page_entry, log_page_error
 from src.state import (
     render_date_filter, load_filtered_edge_fact, load_filtered_message_fact,
     load_filtered_graph_metrics, load_nonhuman_emails, load_person_dim,
@@ -116,6 +117,7 @@ def _person_metrics(start_date, end_date, email):
 
 
 st.set_page_config(page_title="Person Comparison", layout="wide")
+_page_log = log_page_entry("28_person_comparison")
 st.title("Person Comparison")
 st.caption("Side-by-side behavioral metrics for two people.")
 

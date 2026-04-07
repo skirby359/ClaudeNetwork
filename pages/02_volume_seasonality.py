@@ -4,6 +4,7 @@ import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
 
+from src.page_logger import log_page_entry, log_page_error
 from src.state import (
     render_date_filter,
     load_filtered_edge_fact, load_filtered_weekly_agg,
@@ -41,6 +42,7 @@ def _cached_sender_concentration(start_date, end_date):
 # ---------------------------------------------------------------------------
 
 st.set_page_config(page_title="Volume & Seasonality", layout="wide")
+_page_log = log_page_entry("02_volume_seasonality")
 st.title("Volume & Seasonality")
 
 start_date, end_date = render_date_filter()

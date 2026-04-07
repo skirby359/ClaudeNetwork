@@ -4,6 +4,7 @@ import streamlit as st
 import plotly.express as px
 import polars as pl
 
+from src.page_logger import log_page_entry, log_page_error
 from src.state import (
     render_date_filter,
     load_message_fact, load_filtered_message_fact,
@@ -52,6 +53,7 @@ def _cached_zero_size_senders(start_date, end_date):
 # ---------------------------------------------------------------------------
 
 st.set_page_config(page_title="Data Quality", layout="wide")
+_page_log = log_page_entry("18_data_quality")
 st.title("Data Quality Report")
 
 start_date, end_date = render_date_filter()

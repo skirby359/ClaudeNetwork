@@ -9,6 +9,7 @@ import polars as pl
 
 from src.state import get_config, load_message_fact, load_person_dim
 from src.config import AppConfig
+from src.page_logger import log_page_entry, log_page_error
 
 # Load .env.local if it exists (for Microsoft credentials etc.)
 _env_path = Path(__file__).resolve().parent.parent / ".env.local"
@@ -37,6 +38,7 @@ def _clear_all_caches(config: AppConfig):
 # ---------------------------------------------------------------------------
 
 st.set_page_config(page_title="Settings", layout="wide")
+_page_log = log_page_entry("00_settings")
 st.title("Settings & Data Onboarding")
 
 config = get_config()

@@ -7,6 +7,7 @@ import colorsys
 
 from pyvis.network import Network
 
+from src.page_logger import log_page_entry, log_page_error
 from src.state import (
     load_person_dim,
     render_date_filter,
@@ -16,6 +17,7 @@ from src.export import download_csv_button
 from src.drilldown import handle_dataframe_person_click
 
 st.set_page_config(page_title="Network Map", layout="wide")
+_page_log = log_page_entry("06_network_map")
 st.title("Network Map")
 
 start_date, end_date = render_date_filter()

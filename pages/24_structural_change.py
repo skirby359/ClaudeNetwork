@@ -5,6 +5,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import polars as pl
 
+from src.page_logger import log_page_entry, log_page_error
 from src.state import (
     render_date_filter, load_filtered_edge_fact, load_nonhuman_emails,
 )
@@ -32,6 +33,7 @@ def _cached_structural(start_date, end_date):
 
 
 st.set_page_config(page_title="Structural Change Detection", layout="wide")
+_page_log = log_page_entry("24_structural_change")
 st.title("Structural Change Detection")
 st.caption("Detecting when and how organizational structure shifts over time.")
 

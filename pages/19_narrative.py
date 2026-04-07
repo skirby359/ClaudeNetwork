@@ -3,6 +3,7 @@
 import streamlit as st
 import polars as pl
 
+from src.page_logger import log_page_entry, log_page_error
 from src.state import (
     render_date_filter, render_comparison_filter,
     load_message_fact, load_person_dim,
@@ -38,6 +39,7 @@ def _cached_period_summary(start_date, end_date):
 # ---------------------------------------------------------------------------
 
 st.set_page_config(page_title="Narrative Insights", layout="wide")
+_page_log = log_page_entry("19_narrative")
 st.title("Narrative Insights")
 st.caption("Auto-generated analysis of key communication patterns.")
 

@@ -4,6 +4,7 @@ import streamlit as st
 import plotly.express as px
 import polars as pl
 
+from src.page_logger import log_page_entry, log_page_error
 from src.state import (
     load_person_dim,
     render_date_filter,
@@ -15,6 +16,7 @@ from src.anonymize import anon_df
 from src.drilldown import handle_plotly_person_click, handle_dataframe_person_click
 
 st.set_page_config(page_title="Bottlenecks & Routing", layout="wide")
+_page_log = log_page_entry("07_bottlenecks_routing")
 st.title("Bottlenecks & Routing")
 
 st.markdown("""

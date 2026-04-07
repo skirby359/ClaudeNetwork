@@ -7,6 +7,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import polars as pl
 
+from src.page_logger import log_page_entry, log_page_error
 from src.state import (
     render_date_filter, load_filtered_message_fact, load_filtered_edge_fact,
     load_person_dim, load_nonhuman_emails,
@@ -38,6 +39,7 @@ def _cached_after_hours(start_date, end_date):
 
 
 st.set_page_config(page_title="Compliance Patterns", layout="wide")
+_page_log = log_page_entry("25_compliance")
 st.title("Compliance Pattern Detection")
 st.caption("Communication anomalies relevant to compliance review: blackouts, external contact spikes, and after-hours clusters.")
 

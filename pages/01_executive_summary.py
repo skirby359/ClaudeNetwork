@@ -4,6 +4,7 @@ import streamlit as st
 import plotly.express as px
 import polars as pl
 
+from src.page_logger import log_page_entry, log_page_error
 from src.state import (
     load_person_dim, load_message_fact,
     render_date_filter, render_comparison_filter,
@@ -80,6 +81,7 @@ def _cached_reply_summary(start_date, end_date):
 # ---------------------------------------------------------------------------
 
 st.set_page_config(page_title="Executive Summary", layout="wide")
+_page_log = log_page_entry("01_executive_summary")
 st.title("Executive Summary")
 
 start_date, end_date = render_date_filter()
