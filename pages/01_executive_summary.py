@@ -104,6 +104,18 @@ if len(message_fact) == 0:
     st.warning("No data in selected date range.")
     st.stop()
 
+# person_dim is computed over the whole dataset; restrict it to people who were
+# actually active in the selected date range so the people counts are consistent
+# with Total Messages (otherwise "Unique People" reflects all time while the
+# message totals reflect the filtered window).
+_active_emails = set(edge_fact["from_email"].to_list()) | set(edge_fact["to_email"].to_list())
+people_in_range = person_dim.filter(pl.col("email").is_in(list(_active_emails)))
+
+st.caption(
+    f"Showing **{start_date:%b %d, %Y} – {end_date:%b %d, %Y}**. "
+    "Adjust the date filter above to widen the range (defaults to the last 30 days)."
+)
+
 # =========================================================================
 # Section 1: Human vs Machine Communication
 # =========================================================================
@@ -151,7 +163,7 @@ if comp_enabled and comp_start and comp_end:
     prev_summary = _cached_period_summary(comp_start, comp_end)
     delta_info = compute_delta(current_summary, prev_summary)
 
-internal = person_dim.filter(person_dim["is_internal"])
+internal = people_in_range.filter(people_in_range["is_internal"])
 if len(internal) == 0:
     st.warning(
         "**No internal staff detected** — internal domains are not configured, so "
@@ -162,11 +174,12 @@ if len(internal) == 0:
 
 c1, c2, c3, c4, c5 = st.columns(5)
 with c1:
-    st.metric("Unique People", f"{len(person_dim):,}")
+    st.metric("Unique People", f"{len(people_in_range):,}",
+              help="Distinct people active in the selected date range.")
 with c2:
     st.metric("Internal Staff", f"{len(internal):,}")
 with c3:
-    external_count = len(person_dim) - len(internal)
+    external_count = len(people_in_range) - len(internal)
     st.metric("External Contacts", f"{external_count:,}")
 with c4:
     total_bytes = message_fact["size_bytes"].sum()
