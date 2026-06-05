@@ -106,12 +106,18 @@ edge_pairs = (
     .filter(
         pl.col("from_email").is_in(list(top_emails))
         & pl.col("to_email").is_in(list(top_emails))
+        # Drop self-loops (sender == recipient, e.g. distribution lists that
+        # include the sender) — they aren't a relationship and render as stray
+        # stubs with no visible node at the end.
+        & (pl.col("from_email") != pl.col("to_email"))
     )
 )
 
 net = Network(height="600px", width="100%", bgcolor="#222222", font_color="white",
               directed=True)
-net.barnes_hut(gravity=-3000, central_gravity=0.3, spring_length=100)
+# Gentler repulsion keeps peripheral (low-degree) nodes inside the viewport
+# instead of flinging them off-canvas, which left edges pointing at "nothing".
+net.barnes_hut(gravity=-2000, central_gravity=0.5, spring_length=120)
 
 # Color communities with >2 members; lump the rest as "other"
 community_ids = [c for c in top_people["community_id"].unique().to_list() if c in selected_communities]

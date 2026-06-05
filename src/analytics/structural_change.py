@@ -104,12 +104,20 @@ def track_node_switches(snapshots: dict[str, pl.DataFrame]) -> pl.DataFrame:
 
     Returns: email, month_id, community_id, prev_community_id, switched (bool).
     """
+    # Explicit schema: prev_community_id is None for the entire first month, so
+    # schema inference from the first rows would type it as Null and then fail
+    # when a real (int) community id appears in a later month.
+    schema = {
+        "email": pl.String,
+        "month_id": pl.String,
+        "community_id": pl.Int64,
+        "prev_community_id": pl.Int64,
+        "switched": pl.Boolean,
+    }
+
     months = sorted(snapshots.keys())
     if len(months) < 2:
-        return pl.DataFrame({
-            "email": [], "month_id": [], "community_id": [],
-            "prev_community_id": [], "switched": [],
-        })
+        return pl.DataFrame(schema=schema)
 
     records = []
     prev_lookup: dict[str, int] = {}
@@ -132,7 +140,7 @@ def track_node_switches(snapshots: dict[str, pl.DataFrame]) -> pl.DataFrame:
 
         prev_lookup = curr_lookup
 
-    return pl.DataFrame(records)
+    return pl.DataFrame(records, schema=schema)
 
 
 def compute_switch_rates(node_switches: pl.DataFrame) -> pl.DataFrame:
