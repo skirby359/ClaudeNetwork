@@ -17,3 +17,6 @@ profiles/
 .env.local
 .env.*
 *.secret
+
+# Local test harness with hardcoded credentials — never commit
+scripts/test_graph_extract.py

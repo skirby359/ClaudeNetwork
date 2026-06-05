@@ -19,8 +19,11 @@ import polars as pl
 
 GRAPH_BASE = "https://graph.microsoft.com/v1.0"
 
-# Only request the metadata fields we need
-MESSAGE_SELECT = "sentDateTime,from,toRecipients,ccRecipients,internetMessageId,size"
+# Only request the metadata fields we need.
+# NOTE: the Graph `message` resource has no `size` property in v1.0 (requesting it
+# returns 400 RequestBroker--ParseUri). Message size is therefore unavailable from
+# the Graph source; size_bytes defaults to 0 in graph_messages_to_dataframe().
+MESSAGE_SELECT = "sentDateTime,from,toRecipients,ccRecipients,internetMessageId"
 MESSAGE_TOP = 500  # max per page (Graph API allows up to 999 but 500 is safer)
 
 
