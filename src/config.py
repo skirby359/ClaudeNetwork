@@ -87,14 +87,31 @@ class AppConfig:
             csv_paths=csv_files,
         )
 
+    # Consumer/free email providers are never an organization's internal domain.
+    # Excluded from auto-detection so external constituents/donors (who often
+    # outnumber staff in a mailbox set) don't get misclassified as internal.
+    CONSUMER_EMAIL_DOMAINS = frozenset({
+        "gmail.com", "googlemail.com", "yahoo.com", "ymail.com", "hotmail.com",
+        "outlook.com", "live.com", "msn.com", "aol.com", "icloud.com", "me.com",
+        "mac.com", "comcast.net", "verizon.net", "att.net", "sbcglobal.net",
+        "cox.net", "protonmail.com", "proton.me", "gmx.com", "mail.com",
+    })
+
     @staticmethod
     def detect_internal_domains(person_emails: list[str], top_n: int = 3) -> list[str]:
-        """Auto-detect internal domains from the most common email domains."""
+        """Auto-detect internal domains from the most common email domains.
+
+        Consumer email providers (gmail, yahoo, etc.) are excluded — they are
+        never an org's internal domain, and on real client data the external
+        public often outnumbers staff, which would otherwise flip the result.
+        """
         from collections import Counter
         domains = []
         for email in person_emails:
             if "@" in email:
-                domains.append(email.split("@")[1].lower())
+                domain = email.split("@")[1].lower()
+                if domain and domain not in AppConfig.CONSUMER_EMAIL_DOMAINS:
+                    domains.append(domain)
         if not domains:
             return []
         counts = Counter(domains)

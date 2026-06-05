@@ -18,5 +18,13 @@ profiles/
 .env.*
 *.secret
 
+# Per-client Microsoft Graph credentials (one file per client) — never commit.
+# The .example template is allowed so the convention is documented in the repo.
+secrets/*
+!secrets/_TEMPLATE.env.example
+
 # Local test harness with hardcoded credentials — never commit
 scripts/test_graph_extract.py
+
+# Coverage artifacts
+.coverage*

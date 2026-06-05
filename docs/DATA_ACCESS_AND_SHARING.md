@@ -117,6 +117,61 @@ permissions or deletes the app registration. Access ends immediately.
 
 ---
 
+## Limiting access by date
+
+The analysis can be confined to a specific time window, so that messages outside
+the engagement period are **never retrieved from your tenant at all**.
+
+- **Extraction-time date filter (primary control).** Every extraction can specify
+  a start date (and, if needed, an end date). The tool requests only messages sent
+  within that window using a server-side filter (`sentDateTime ge <start>`).
+  Messages older than the start date are not returned by Microsoft and never reach
+  the engagement environment — this is a filter applied *at the source*, not after
+  the fact. For example, an engagement scoped to "January 2025 onward" will not
+  retrieve, see, or store anything from December 2024 or earlier.
+- **Engagement-window access (secondary control).** Because access depends on an
+  app registration that you control, you can also bound access in *calendar* time:
+  enable the app at the start of the engagement and disable or delete it at the
+  end. Outside that window the tool cannot authenticate at all.
+- **Client secret expiry.** The app's credential is issued with a fixed expiry
+  date. Once it lapses, the tool can no longer connect until your administrator
+  issues a new one — a natural backstop on how long access can persist.
+
+We will agree the exact date range with you in writing before any extraction runs.
+
+---
+
+## Auditing what the application accessed
+
+Because access flows through an app registration in **your** Microsoft 365
+tenant, **you hold an independent audit trail** — you do not have to take our word
+for what was accessed. Your administrator can review, at any time:
+
+- **Entra sign-in logs (service principal sign-ins).** *Microsoft Entra admin
+  center → Monitoring & health → Sign-in logs → "Service principal sign-ins" tab.*
+  Every time the tool acquires a token is logged with timestamp, source IP, and
+  success/failure. This shows *when* and *from where* the application connected.
+- **Microsoft Graph activity logs (most granular).** *Entra admin center →
+  Monitoring & health → Graph activity logs.* Records every individual Graph API
+  request the application made — the exact URL, timestamp, and response. This lets
+  you verify the tool called only the message-metadata endpoints and only the
+  fields described in this document, and touched only the agreed mailboxes.
+- **Microsoft Purview unified audit log (`MailItemsAccessed`).** *Microsoft
+  Purview → Audit.* For tenants with the appropriate licensing, this logs
+  application access to mailbox items, mailbox by mailbox — an additional,
+  mailbox-owner-level record of access.
+- **Permissions review.** *Entra admin center → Enterprise applications → [the
+  app] → Permissions.* Shows exactly which permissions are consented
+  (`Mail.ReadBasic.All`, and `User.Read.All` if enabled) — confirming no content,
+  write, or send permissions were ever granted.
+
+These logs are generated and retained by Microsoft under your control, are not
+modifiable by the consultant, and can be exported for your compliance records. We
+recommend your administrator enable diagnostic settings to retain sign-in and
+Graph activity logs for the duration of the engagement.
+
+---
+
 *Questions about anything in this document are welcome. We are happy to walk your
 IT and compliance teams through the exact technical configuration before any data
 is accessed.*

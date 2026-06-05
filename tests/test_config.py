@@ -31,3 +31,16 @@ class TestDetectInternalDomains:
         emails = ["a@Example.COM", "b@example.com"]
         result = AppConfig.detect_internal_domains(emails)
         assert "example.com" in result
+
+    def test_excludes_consumer_domains(self):
+        # External consumers (gmail/yahoo) often outnumber staff in a mailbox set;
+        # they must never be detected as the internal domain.
+        emails = (
+            ["donor%d@gmail.com" % i for i in range(20)]
+            + ["voter%d@yahoo.com" % i for i in range(10)]
+            + ["a@acme-corp.com", "b@acme-corp.com", "c@acme-corp.com"]
+        )
+        result = AppConfig.detect_internal_domains(emails)
+        assert "acme-corp.com" in result
+        assert "gmail.com" not in result
+        assert "yahoo.com" not in result

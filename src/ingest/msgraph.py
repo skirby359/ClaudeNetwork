@@ -51,11 +51,19 @@ def _get_access_token(config: GraphConfig) -> str:
     return result["access_token"]
 
 
-def _graph_get(client: httpx.Client, url: str, token: str, retries: int = 3) -> dict:
-    """GET request to Graph API with retry on 429/503."""
+def _graph_get(client: httpx.Client, url: str, token: str, retries: int = 4) -> dict:
+    """GET request to Graph API with retry on read timeout and on 429/503."""
     headers = {"Authorization": f"Bearer {token}"}
     for attempt in range(retries):
-        resp = client.get(url, headers=headers)
+        try:
+            resp = client.get(url, headers=headers)
+        except httpx.TimeoutException:
+            # Large mailboxes occasionally stall a page — back off and retry
+            # rather than aborting the whole mailbox.
+            if attempt == retries - 1:
+                raise
+            time.sleep(2 ** attempt)
+            continue
         if resp.status_code == 200:
             return resp.json()
         if resp.status_code == 429:
@@ -131,7 +139,9 @@ def fetch_user_messages(
         iso = since.strftime("%Y-%m-%dT%H:%M:%SZ")
         url += f"&$filter=sentDateTime ge {iso}"
 
-    with httpx.Client(timeout=30) as client:
+    # 60s read timeout (30s was too tight for large mailboxes); _graph_get retries
+    # on timeout with backoff, so a transient stall recovers without losing the mailbox.
+    with httpx.Client(timeout=httpx.Timeout(60.0, connect=30.0)) as client:
         while url and len(messages) < max_messages:
             data = _graph_get(client, url, token)
             batch = data.get("value", [])
@@ -161,14 +171,27 @@ def graph_messages_to_dataframe(
     """Convert raw Graph API messages to the message_fact schema.
 
     Matches the same schema as CSV ingestion so all downstream analytics work unchanged.
+
+    De-duplicates across mailboxes: the same email appears in the sender's mailbox
+    AND every internal recipient's mailbox, so per-mailbox fetching yields multiple
+    copies of one message. We collapse them by internetMessageId (a stable, globally
+    unique id) and keep one copy. Messages with no internetMessageId are kept as-is.
     """
     records = []
     msg_id = start_msg_id
+    seen_message_ids: set[str] = set()
 
     for msg in raw_messages:
         sent = msg.get("sentDateTime")
         if not sent:
             continue
+
+        # Collapse cross-mailbox duplicates by internetMessageId
+        imid = msg.get("internetMessageId")
+        if imid:
+            if imid in seen_message_ids:
+                continue
+            seen_message_ids.add(imid)
 
         # Parse ISO timestamp
         try:
