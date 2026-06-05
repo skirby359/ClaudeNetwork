@@ -101,6 +101,26 @@ class TestGraphMessagesToDataframe:
         df = graph_messages_to_dataframe(msgs)
         assert df["is_after_hours"][0] == True
 
+    def test_timezone_conversion(self):
+        # 18:00 UTC = 10:00 Pacific (PST). Without conversion it would be flagged
+        # after-hours (hour>=18); converted to local it's mid-morning business time.
+        from src.config import DatasetConfig
+        msgs = [self._make_message("2024-01-15T18:00:00Z", "a@b.com", ["c@d.com"])]
+        df_utc = graph_messages_to_dataframe(msgs)
+        assert df_utc["hour"][0] == 18
+        assert df_utc["is_after_hours"][0] == True
+
+        ds = DatasetConfig(name="t", timezone="America/Los_Angeles")
+        df_local = graph_messages_to_dataframe(msgs, dataset_config=ds)
+        assert df_local["hour"][0] == 10
+        assert df_local["is_after_hours"][0] == False
+
+    def test_dedup_by_internet_message_id(self):
+        # Same message appearing in two mailboxes collapses to one row.
+        dup = self._make_message("2024-01-15T10:00:00Z", "a@b.com", ["c@d.com"])
+        df = graph_messages_to_dataframe([dup, dict(dup)])
+        assert len(df) == 1
+
     def test_weekend_detection(self):
         # 2024-01-13 is a Saturday
         msgs = [self._make_message("2024-01-13T10:00:00Z", "a@b.com", ["c@d.com"])]

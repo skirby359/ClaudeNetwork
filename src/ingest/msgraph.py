@@ -181,6 +181,18 @@ def graph_messages_to_dataframe(
     msg_id = start_msg_id
     seen_message_ids: set[str] = set()
 
+    # Graph returns UTC timestamps. Convert to the org's local timezone so that
+    # hour-of-day / after-hours / weekend analytics are correct (otherwise normal
+    # local business hours look like after-hours). None = leave as UTC.
+    local_tz = None
+    tz_name = getattr(dataset_config, "timezone", None) if dataset_config else None
+    if tz_name:
+        from zoneinfo import ZoneInfo
+        try:
+            local_tz = ZoneInfo(tz_name)
+        except Exception:
+            local_tz = None
+
     for msg in raw_messages:
         sent = msg.get("sentDateTime")
         if not sent:
@@ -193,10 +205,12 @@ def graph_messages_to_dataframe(
                 continue
             seen_message_ids.add(imid)
 
-        # Parse ISO timestamp
+        # Parse ISO timestamp (aware, UTC), convert to local tz, then drop tzinfo
+        # to produce naive local time consistent with the CSV pipeline.
         try:
             ts = dt.datetime.fromisoformat(sent.replace("Z", "+00:00"))
-            # Convert to naive datetime (drop timezone) for consistency with CSV pipeline
+            if local_tz is not None:
+                ts = ts.astimezone(local_tz)
             ts = ts.replace(tzinfo=None)
         except (ValueError, TypeError):
             continue

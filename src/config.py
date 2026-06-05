@@ -18,6 +18,10 @@ class DatasetConfig:
     after_hours_start: int = 18  # 6 PM
     after_hours_end: int = 7     # 7 AM
     weekend_days: list[int] = field(default_factory=lambda: [5, 6])  # Sat, Sun
+    # IANA timezone (e.g. "America/Los_Angeles") for sources that deliver UTC
+    # timestamps (Microsoft Graph). Converts to local time so hour-of-day,
+    # after-hours, and weekend analytics are correct. None = leave as-is.
+    timezone: str | None = None
 
 
 @dataclass

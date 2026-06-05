@@ -23,7 +23,7 @@ sys.path.insert(0, ".")
 
 import polars as pl
 
-from src.config import AppConfig
+from src.config import AppConfig, DatasetConfig
 from src.cache_manager import write_parquet
 from src.ingest.msgraph import GraphConfig, run_graph_ingestion
 
@@ -51,6 +51,16 @@ def main():
     config = AppConfig()
     cfg = GraphConfig(tenant_id=tenant, app_id=app_id, app_secret=secret)
 
+    # Graph delivers UTC; convert to the org's local timezone so time-of-day,
+    # after-hours and weekend analytics are correct. Set MS_TIMEZONE (IANA name).
+    tz = os.environ.get("MS_TIMEZONE", "")
+    dataset = DatasetConfig(name="graph", timezone=tz or None)
+    if tz:
+        print(f"Timezone: {tz}")
+    else:
+        print("WARNING: MS_TIMEZONE not set — timestamps kept as UTC; "
+              "after-hours/weekend metrics will be wrong if the org isn't on UTC.")
+
     # Back up the existing (Spokane) message_fact cache before overwriting.
     cache_path = config.cache_path(config.message_fact_file)
     if cache_path.exists():
@@ -70,6 +80,7 @@ def main():
         since=None,      # full history
         max_per_user=50000,
         progress_callback=progress,
+        dataset_config=dataset,
     )
     elapsed = time.perf_counter() - t0
 
