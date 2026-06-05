@@ -454,9 +454,15 @@ if csv_files:
                 with st.expander("Parsed Columns Preview", expanded=True):
                     import pandas as pd
                     display_header = profile["header"][:8]  # limit columns
-                    display_rows = [row[:8] for row in profile["sample_rows"][:10]]
-                    pdf = pd.DataFrame(display_rows, columns=display_header[:len(display_rows[0])] if display_rows else display_header)
-                    st.dataframe(pdf, use_container_width=True)
+                    n_cols = len(display_header)
+                    # Rows can be ragged (e.g. commas in the To field spill across
+                    # columns), so pad/truncate every row to exactly the header width.
+                    display_rows = [
+                        (list(row[:n_cols]) + [""] * (n_cols - len(row)))[:n_cols]
+                        for row in profile["sample_rows"][:10]
+                    ]
+                    pdf = pd.DataFrame(display_rows, columns=display_header)
+                    st.dataframe(pdf, width="stretch")
 else:
     st.info("No CSV files in data directory. Upload files above.")
 

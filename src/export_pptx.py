@@ -218,11 +218,14 @@ def generate_pptx(
         weekend_rate = float(message_fact["is_weekend"].mean()) * 100
         avg_size_kb = float(message_fact["size_bytes"].mean()) / 1024
 
-        _add_kpi_slide(prs, "Work Pattern Metrics", [
+        work_kpis = [
             ("After-Hours Rate", f"{ah_rate:.1f}%"),
             ("Weekend Rate", f"{weekend_rate:.1f}%"),
-            ("Avg Message Size", f"{avg_size_kb:.1f} KB"),
-        ])
+        ]
+        # Omit size when the source has no size data (e.g. Microsoft Graph)
+        if avg_size_kb > 0:
+            work_kpis.append(("Avg Message Size", f"{avg_size_kb:.1f} KB"))
+        _add_kpi_slide(prs, "Work Pattern Metrics", work_kpis)
 
     # --- Top Senders ---
     if total_msgs > 0:

@@ -151,18 +151,32 @@ if comp_enabled and comp_start and comp_end:
     prev_summary = _cached_period_summary(comp_start, comp_end)
     delta_info = compute_delta(current_summary, prev_summary)
 
+internal = person_dim.filter(person_dim["is_internal"])
+if len(internal) == 0:
+    st.warning(
+        "**No internal staff detected** — internal domains are not configured, so "
+        "every contact is being counted as external. Load an engagement profile or "
+        "set internal domains on the **Settings** page for correct internal/external "
+        "splits, external-partner analysis, and silo detection."
+    )
+
 c1, c2, c3, c4, c5 = st.columns(5)
 with c1:
     st.metric("Unique People", f"{len(person_dim):,}")
 with c2:
-    internal = person_dim.filter(person_dim["is_internal"])
     st.metric("Internal Staff", f"{len(internal):,}")
 with c3:
     external_count = len(person_dim) - len(internal)
     st.metric("External Contacts", f"{external_count:,}")
 with c4:
     total_bytes = message_fact["size_bytes"].sum()
-    st.metric("Data Volume", f"{total_bytes / (1024**3):.1f} GB")
+    if total_bytes and total_bytes > 0:
+        st.metric("Data Volume", f"{total_bytes / (1024**3):.1f} GB")
+    else:
+        # Some sources (e.g. Microsoft Graph) don't expose message size.
+        st.metric("Data Volume", "N/A",
+                  help="Message size is not available from this data source "
+                       "(e.g. Microsoft Graph header-only extraction).")
 with c5:
     gm = load_filtered_graph_metrics(start_date, end_date)
     n_communities = gm["community_id"].n_unique() if len(gm) > 0 else 0

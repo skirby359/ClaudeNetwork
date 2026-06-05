@@ -140,7 +140,9 @@ def generate_html_report(
         work_html = '<div style="text-align:center;">'
         work_html += _metric_card("After-Hours Rate", f"{ah_rate:.1f}%", "#f28e2b")
         work_html += _metric_card("Weekend Rate", f"{we_rate:.1f}%", "#f28e2b")
-        work_html += _metric_card("Avg Message Size", f"{avg_size_kb:.1f} KB")
+        # Omit size when the source has no size data (e.g. Microsoft Graph)
+        if avg_size_kb > 0:
+            work_html += _metric_card("Avg Message Size", f"{avg_size_kb:.1f} KB")
         work_html += '</div>'
 
         # Hourly distribution chart

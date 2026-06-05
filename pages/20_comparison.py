@@ -105,9 +105,13 @@ with c4:
     st.metric("After-Hours Rate", f"{current_summary['after_hours_rate']:.1%}",
               delta=f"{delta_info['after_hours_rate']['delta']:+.1%}")
 with c5:
-    gb_current = current_summary["total_bytes"] / (1024**3)
-    gb_delta = delta_info["total_bytes"]["delta"] / (1024**3)
-    st.metric("Total Data", f"{gb_current:.1f} GB", delta=f"{gb_delta:+.1f} GB")
+    if current_summary["total_bytes"] > 0:
+        gb_current = current_summary["total_bytes"] / (1024**3)
+        gb_delta = delta_info["total_bytes"]["delta"] / (1024**3)
+        st.metric("Total Data", f"{gb_current:.1f} GB", delta=f"{gb_delta:+.1f} GB")
+    else:
+        st.metric("Total Data", "N/A",
+                  help="Message size is not available from this data source.")
 
 st.divider()
 
