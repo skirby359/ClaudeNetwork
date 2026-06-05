@@ -84,11 +84,11 @@ if len(blackouts) > 0:
         labels={"gap_hours": "Gap (hours)", "avg_weekly_volume": "Avg Weekly Volume"},
     )
     fig_bo.update_layout(height=400, xaxis_tickangle=-45)
-    st.plotly_chart(fig_bo, use_container_width=True)
+    st.plotly_chart(fig_bo, width="stretch")
 
     st.dataframe(
         blackouts.head(50).to_pandas(),
-        use_container_width=True,
+        width="stretch",
         height=min(400, len(blackouts) * 35 + 40),
     )
     download_csv_button(blackouts, "blackout_windows.csv")
@@ -121,9 +121,9 @@ if len(spike_only) > 0:
         labels={"external_contacts": "Unique External Contacts", "zscore": "Z-Score"},
     )
     fig_spikes.update_layout(height=400)
-    st.plotly_chart(fig_spikes, use_container_width=True)
+    st.plotly_chart(fig_spikes, width="stretch")
 
-    st.dataframe(spike_only.head(50).to_pandas(), use_container_width=True)
+    st.dataframe(spike_only.head(50).to_pandas(), width="stretch")
     download_csv_button(spike_only, "external_spikes.csv")
 else:
     st.success("No external contact spikes detected.")
@@ -172,8 +172,8 @@ if key_dates:
             barmode="group", title="Volume Before vs After Key Dates",
             height=350, yaxis_title="Message Count",
         )
-        st.plotly_chart(fig_kd, use_container_width=True)
-        st.dataframe(kd_analysis.to_pandas(), use_container_width=True)
+        st.plotly_chart(fig_kd, width="stretch")
+        st.dataframe(kd_analysis.to_pandas(), width="stretch")
 else:
     st.info("Add key dates above to analyze communication patterns around significant events.")
 
@@ -204,7 +204,7 @@ if len(ah_clusters) > 0:
             },
         )
         fig_ah.update_layout(height=350)
-        st.plotly_chart(fig_ah, use_container_width=True)
+        st.plotly_chart(fig_ah, width="stretch")
 
     with col_b:
         for row in ah_clusters.head(5).iter_rows(named=True):

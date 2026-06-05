@@ -98,7 +98,7 @@ for col, (res_name, col_name) in zip(res_cols, [
             labels={"members": "Members", label_col: "Community"},
         )
         fig.update_layout(height=400, yaxis=dict(autorange="reversed"))
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
 # --- Section 3: Community Types ---
 st.divider()
@@ -123,10 +123,10 @@ with col_a:
         color_discrete_sequence=px.colors.qualitative.Set2,
     )
     fig_pie.update_layout(height=350)
-    st.plotly_chart(fig_pie, use_container_width=True)
+    st.plotly_chart(fig_pie, width="stretch")
 
 with col_b:
-    st.dataframe(type_counts.to_pandas(), use_container_width=True)
+    st.dataframe(type_counts.to_pandas(), width="stretch")
     st.markdown("""
     - **pair**: 2-3 members
     - **team**: 4-15 members
@@ -156,7 +156,7 @@ if len(nesting) > 0:
         color_continuous_scale="Blues",
     )
     fig_tree.update_layout(height=600)
-    st.plotly_chart(fig_tree, use_container_width=True)
+    st.plotly_chart(fig_tree, width="stretch")
 
 # --- Export ---
 st.divider()

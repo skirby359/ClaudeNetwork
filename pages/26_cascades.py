@@ -93,9 +93,9 @@ if len(metrics) > 0:
         labels={"depth": "Chain Depth", "breadth": "Unique Recipients", "cascade_id": "Cascade"},
     )
     fig_depth.update_layout(height=400)
-    st.plotly_chart(fig_depth, use_container_width=True)
+    st.plotly_chart(fig_depth, width="stretch")
 
-    st.dataframe(top_cascades.to_pandas(), use_container_width=True)
+    st.dataframe(top_cascades.to_pandas(), width="stretch")
     download_csv_button(metrics, "cascade_metrics.csv")
 
 # --- Section 3: Amplifier Rankings ---
@@ -114,9 +114,9 @@ if len(amplifiers) > 0:
         labels={"amplifier_score": "Amplifier Score", "avg_fanout": "Avg Fan-out"},
     )
     fig_amp.update_layout(height=400, xaxis_tickangle=-45)
-    st.plotly_chart(fig_amp, use_container_width=True)
+    st.plotly_chart(fig_amp, width="stretch")
 
-    st.dataframe(top_amp.to_pandas(), use_container_width=True)
+    st.dataframe(top_amp.to_pandas(), width="stretch")
     download_csv_button(amplifiers, "amplifiers.csv")
 else:
     st.info("No amplifier nodes identified.")
@@ -143,7 +143,7 @@ if len(metrics) > 0 and "duration_minutes" in metrics.columns:
             labels={"start_time": "Time", "depth": "Chain Depth", "breadth": "Recipients"},
         )
         fig_timeline.update_layout(height=400, showlegend=False)
-        st.plotly_chart(fig_timeline, use_container_width=True)
+        st.plotly_chart(fig_timeline, width="stretch")
 
 # --- Section 5: Cascade Detail Explorer ---
 st.divider()
@@ -161,7 +161,7 @@ if len(metrics) > 0:
 
     if selected_id is not None:
         chain = cascades.filter(pl.col("cascade_id") == selected_id).sort("step")
-        st.dataframe(chain.to_pandas(), use_container_width=True)
+        st.dataframe(chain.to_pandas(), width="stretch")
 
         # Simple flow visualization
         if len(chain) > 0:
@@ -182,4 +182,4 @@ if len(metrics) > 0:
                 link=dict(source=sources, target=targets, value=values),
             ))
             fig_flow.update_layout(title=f"Cascade {selected_id} Flow", height=300)
-            st.plotly_chart(fig_flow, use_container_width=True)
+            st.plotly_chart(fig_flow, width="stretch")

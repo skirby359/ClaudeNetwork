@@ -96,14 +96,14 @@ if len(risk_matrix) > 0:
         },
     )
     fig_risk.update_layout(height=450)
-    st.plotly_chart(fig_risk, use_container_width=True)
+    st.plotly_chart(fig_risk, width="stretch")
 
     st.dataframe(
         top_risk.select([
             "email", "is_articulation_point", "risk_score",
             "betweenness", "pagerank", "communities_bridged",
         ]).to_pandas(),
-        use_container_width=True,
+        width="stretch",
     )
     download_csv_button(risk_matrix, "dependency_risk.csv")
 
@@ -126,11 +126,11 @@ if len(team_bf) > 0:
         labels={"bus_factor": "Bus Factor", "manager": "Team Lead"},
     )
     fig_bf.update_layout(height=400, xaxis_tickangle=-45)
-    st.plotly_chart(fig_bf, use_container_width=True)
+    st.plotly_chart(fig_bf, width="stretch")
 
     st.dataframe(
         team_bf.select(["manager", "team_size", "bus_factor", "risk_level"]).to_pandas(),
-        use_container_width=True,
+        width="stretch",
     )
     download_csv_button(team_bf.drop("critical_members"), "team_bus_factor.csv")
 else:
@@ -160,9 +160,9 @@ if len(succession) > 0:
         },
     )
     fig_succ.update_layout(height=400, xaxis_tickangle=-45)
-    st.plotly_chart(fig_succ, use_container_width=True)
+    st.plotly_chart(fig_succ, width="stretch")
 
-    st.dataframe(succession.head(30).to_pandas(), use_container_width=True)
+    st.dataframe(succession.head(30).to_pandas(), width="stretch")
     download_csv_button(succession, "succession_readiness.csv")
 else:
     st.info("No articulation points found — the network has good redundancy.")

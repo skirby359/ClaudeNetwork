@@ -127,7 +127,7 @@ with col_chart:
     )
     fig_split.update_layout(height=300, margin=dict(l=10, r=10, t=30, b=10))
     fig_split.update_traces(textinfo="percent+label")
-    st.plotly_chart(fig_split, use_container_width=True)
+    st.plotly_chart(fig_split, width="stretch")
 
 with col_text:
     st.markdown(f"""
@@ -243,7 +243,7 @@ if len(auto_senders) > 0 and "system_type" in auto_senders.columns:
             color_discrete_sequence=px.colors.qualitative.Set2,
         )
         fig_types.update_layout(height=350)
-        st.plotly_chart(fig_types, use_container_width=True)
+        st.plotly_chart(fig_types, width="stretch")
     with col_table:
         st.dataframe(
             type_summary.rename({
@@ -251,7 +251,7 @@ if len(auto_senders) > 0 and "system_type" in auto_senders.columns:
                 "n_senders": "Senders",
                 "total_messages": "Messages",
             }).to_pandas(),
-            use_container_width=True,
+            width="stretch",
         )
 
 st.divider()
@@ -280,7 +280,7 @@ if system_hourly is not None and len(system_hourly) > 0:
     )
     fig_heatmap.update_layout(height=max(300, len(pivot) * 28 + 100))
     fig_heatmap.update_xaxes(dtick=1)
-    st.plotly_chart(fig_heatmap, use_container_width=True)
+    st.plotly_chart(fig_heatmap, width="stretch")
 
 st.divider()
 

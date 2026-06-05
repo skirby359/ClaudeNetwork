@@ -142,7 +142,7 @@ with c_p:
     )
     fig_split.update_layout(height=180, margin=dict(l=0, r=0, t=0, b=0), showlegend=False)
     fig_split.update_traces(textinfo="percent")
-    st.plotly_chart(fig_split, use_container_width=True)
+    st.plotly_chart(fig_split, width="stretch")
 
 if machine_msgs > human_msgs:
     st.info(

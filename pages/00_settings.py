@@ -328,7 +328,7 @@ if dept_file:
                 .agg(pl.len().alias("people"))
                 .sort("people", descending=True)
                 .to_pandas(),
-                use_container_width=True,
+                width="stretch",
             )
     except Exception as e:
         st.error(f"Failed to read CSV: {e}")

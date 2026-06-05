@@ -78,11 +78,11 @@ fig_nmi.update_layout(
     height=400, yaxis_title="NMI Score", xaxis_title="Month Pair",
     yaxis_range=[0, 1.05],
 )
-st.plotly_chart(fig_nmi, use_container_width=True)
+st.plotly_chart(fig_nmi, width="stretch")
 
 if len(alerts) > 0:
     st.warning(f"**{len(alerts)} stability alert(s)** detected.")
-    st.dataframe(alerts.to_pandas(), use_container_width=True)
+    st.dataframe(alerts.to_pandas(), width="stretch")
 
 # --- Section 2: Shift Classification ---
 st.divider()
@@ -104,11 +104,11 @@ if len(shifts) > 0:
         labels={"nmi": "NMI Score", "shift_type": "Change Type"},
     )
     fig_shifts.update_layout(height=350)
-    st.plotly_chart(fig_shifts, use_container_width=True)
+    st.plotly_chart(fig_shifts, width="stretch")
 
     st.dataframe(
         shifts.to_pandas(),
-        use_container_width=True,
+        width="stretch",
         height=min(400, len(shifts) * 35 + 40),
     )
 
@@ -130,9 +130,9 @@ if len(switch_rates) > 0:
             labels={"n_switches": "Times Switched", "switch_rate": "Switch Rate"},
         )
         fig_sw.update_layout(height=400, xaxis_tickangle=-45)
-        st.plotly_chart(fig_sw, use_container_width=True)
+        st.plotly_chart(fig_sw, width="stretch")
 
-        st.dataframe(top_switchers.to_pandas(), use_container_width=True)
+        st.dataframe(top_switchers.to_pandas(), width="stretch")
         download_csv_button(top_switchers, "frequent_switchers.csv")
     else:
         st.success("No community switches detected in the selected period.")
@@ -163,6 +163,6 @@ if len(flow) > 0:
         title="Community Flow Between Months",
         height=max(500, len(all_labels) * 15),
     )
-    st.plotly_chart(fig_sankey, use_container_width=True)
+    st.plotly_chart(fig_sankey, width="stretch")
 else:
     st.info("Not enough months for flow analysis.")

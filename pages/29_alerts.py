@@ -207,11 +207,11 @@ if alerts:
         title="Alerts by Rule",
     )
     fig.update_layout(height=300)
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
     st.dataframe(
         alert_df.to_pandas(),
-        use_container_width=True,
+        width="stretch",
         height=min(500, len(alerts) * 35 + 40),
     )
     download_csv_button(alert_df, "alerts.csv", "Download Alert Report")

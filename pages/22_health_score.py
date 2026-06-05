@@ -117,7 +117,7 @@ with col_gauge:
         margin=dict(l=60, r=60, t=40, b=40),
         title="Health Dimensions",
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 st.divider()
 
@@ -206,7 +206,7 @@ if len(trend) >= 2:
         height=400, yaxis_title="Score", xaxis_title="Month",
         yaxis_range=[0, 105],
     )
-    st.plotly_chart(fig_trend, use_container_width=True)
+    st.plotly_chart(fig_trend, width="stretch")
 else:
     st.info("Need at least 2 months of data to show a trend.")
 

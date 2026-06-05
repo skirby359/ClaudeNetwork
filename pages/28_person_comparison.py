@@ -248,7 +248,7 @@ fig_radar.update_layout(
     polar=dict(radialaxis=dict(visible=True, range=[0, 105])),
     height=400,
 )
-st.plotly_chart(fig_radar, use_container_width=True)
+st.plotly_chart(fig_radar, width="stretch")
 
 # --- Hourly Activity ---
 st.divider()
@@ -279,7 +279,7 @@ for col, metrics, name, color in [
                 yaxis_title="Messages",
                 margin=dict(l=40, r=10, t=40, b=40),
             )
-            st.plotly_chart(fig_h, use_container_width=True)
+            st.plotly_chart(fig_h, width="stretch")
         else:
             st.info(f"No hourly data for {name}")
 
@@ -302,7 +302,7 @@ for metrics, name, color in [
             line=dict(color=color),
         ))
 fig_weekly.update_layout(height=350, yaxis_title="Messages Sent", xaxis_title="Week")
-st.plotly_chart(fig_weekly, use_container_width=True)
+st.plotly_chart(fig_weekly, width="stretch")
 
 # --- Top Contacts ---
 st.divider()
@@ -315,6 +315,6 @@ for col, metrics, name in [(col_c1, metrics_a, name_a), (col_c2, metrics_b, name
         tc = metrics["top_contacts"]
         if len(tc) > 0:
             st.dataframe(tc.rename({"to_email": "Contact", "msg_count": "Messages"}).to_pandas(),
-                         use_container_width=True, height=min(350, len(tc) * 35 + 40))
+                         width="stretch", height=min(350, len(tc) * 35 + 40))
         else:
             st.info("No outbound messages")
