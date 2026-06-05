@@ -188,15 +188,17 @@ if len(ef_check) == 0:
 # =========================================================================
 # TAB 1: Reciprocal Teams  |  TAB 2: Hierarchy Score (original)
 # =========================================================================
-tab_teams, tab_score = st.tabs(["Reciprocal Teams (recommended)", "Hierarchy Score (original)"])
+tab_teams, tab_score = st.tabs(["Mutual Communication Groups (recommended)", "Hierarchy Score (original)"])
 
-# --- Tab 1: Reciprocal teams ---
+# --- Tab 1: Mutual communication groups ---
 with tab_teams:
-    st.subheader("Reciprocal Team Detection")
+    st.subheader("Mutual Communication Groups")
     st.caption(
-        "Finds people who **both send to and receive from** a consistent group. "
+        "Finds people who **both send to and receive from** a consistent set of others. "
         "This naturally filters out copiers and bots (which only send, never receive replies). "
-        "A person's 'team' is everyone they have bidirectional communication with."
+        "**These relationships are mutual (two-way), not supervisory** — they show who "
+        "communicates closely with whom, *not* who reports to whom. A pair therefore "
+        "appears from both sides (if A↔B, then B is in A's group and A is in B's)."
     )
 
     with st.sidebar:
@@ -215,20 +217,20 @@ with tab_teams:
     teams = _cached_teams(start_date, end_date, scope_tab, effective_excludes, min_msgs, min_team)
 
     if len(teams) == 0:
-        st.info("No reciprocal teams found. Try lowering the minimum thresholds.")
+        st.info("No mutual communication groups found. Try lowering the minimum thresholds.")
     else:
         # KPIs
         c1, c2, c3 = st.columns(3)
         with c1:
-            st.metric("People with Teams", f"{len(teams):,}")
+            st.metric("People in Mutual Groups", f"{len(teams):,}")
         with c2:
             avg_team = teams["team_size"].mean()
-            st.metric("Avg Team Size", f"{avg_team:.1f}")
+            st.metric("Avg Mutual Contacts", f"{avg_team:.1f}")
         with c3:
             max_team = teams["team_size"].max()
-            st.metric("Largest Team", f"{max_team:,}")
+            st.metric("Most Mutual Contacts", f"{max_team:,}")
 
-        # Bar chart: top managers by team size
+        # Bar chart: top people by number of mutual contacts
         top_teams = teams.head(30).select([
             "manager", "display_name", "team_size",
             "total_sent_to_team", "total_recv_from_team",
@@ -240,8 +242,8 @@ with tab_teams:
         fig = px.bar(
             top_pd, x="short_name", y="team_size",
             hover_data=["manager", "display_name", "total_sent_to_team", "total_recv_from_team"],
-            title="Top 30 by Reciprocal Team Size",
-            labels={"short_name": "Person", "team_size": "Team Size"},
+            title="Top 30 by Number of Mutual Contacts",
+            labels={"short_name": "Person", "team_size": "Mutual Contacts"},
             color="total_sent_to_team",
             color_continuous_scale="Blues",
         )
@@ -249,27 +251,36 @@ with tab_teams:
         ev_teams = st.plotly_chart(fig, width="stretch", on_select="rerun", key="p14_teams")
         handle_scatter_person_click(ev_teams, "p14_teams", start_date, end_date, customdata_index=0)
 
-        # Treemap
-        st.subheader("Team Structure (Treemap)")
+        # Treemap — each person and the people they mutually communicate with.
+        st.subheader("Mutual Contacts by Person")
+        st.caption(
+            "Each top-level box is a person; nested boxes are people they have "
+            "**two-way** communication with. Relationships are mutual, so the same "
+            "pair appears under both people — this is **not** a reporting chart."
+        )
         pairs = build_reporting_pairs_from_teams(teams.head(20))
         if len(pairs) > 0:
+            pairs_pd = pairs.rename({"manager": "person", "report": "mutual_contact"}).to_pandas()
             fig2 = px.treemap(
-                pairs.to_pandas(), path=["manager", "report"], values="msg_count",
-                title="Top 20 Managers and Their Team Members",
+                pairs_pd, path=["person", "mutual_contact"], values="msg_count",
+                title="Each Person's Mutual Contacts (two-way communication)",
             )
             fig2.update_layout(height=600)
             st.plotly_chart(fig2, width="stretch")
 
         # Table
-        st.subheader("All Detected Teams")
+        st.subheader("All Mutual Communication Groups")
         table_df = teams.select([
-            "manager", "display_name", "team_size",
-            "total_sent_to_team", "total_recv_from_team",
+            pl.col("manager").alias("person"),
+            "display_name",
+            pl.col("team_size").alias("mutual_contacts"),
+            pl.col("total_sent_to_team").alias("messages_sent"),
+            pl.col("total_recv_from_team").alias("messages_received"),
         ])
         teams_pd = table_df.to_pandas()
         ev_teams_df = st.dataframe(teams_pd, width="stretch", on_select="rerun", selection_mode="single-row", key="p14_teams_df")
-        handle_dataframe_person_click(ev_teams_df, teams_pd, "p14_teams_df", "manager", start_date, end_date)
-        download_csv_button(table_df, "reciprocal_teams.csv")
+        handle_dataframe_person_click(ev_teams_df, teams_pd, "p14_teams_df", "person", start_date, end_date)
+        download_csv_button(table_df, "mutual_communication_groups.csv")
 
 # --- Tab 2: Original hierarchy score ---
 with tab_score:

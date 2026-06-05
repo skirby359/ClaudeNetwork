@@ -170,17 +170,24 @@ def infer_reciprocal_teams(
     min_team_size: int = 3,
     exclude_emails: set[str] | None = None,
 ) -> pl.DataFrame:
-    """Infer manager-team relationships using bidirectional communication.
+    """Find mutual-communication groups using bidirectional communication.
 
-    A real manager both sends to AND receives from their reports. This method:
+    IMPORTANT: this measures *mutual* (two-way) communication, which is
+    SYMMETRIC and has no direction — it does NOT infer who supervises whom.
+    If A<->B communicate mutually, A appears in B's group and B in A's group.
+    Do not present the output as a manager/report org chart. (For a directional
+    leadership signal, use compute_hierarchy_score instead.)
+
+    Method:
     1. Finds all bidirectional pairs (A->B >= min AND B->A >= min).
-    2. For each person, counts how many reciprocal contacts they have.
-    3. Ranks by reciprocal team size.
+    2. For each person, counts how many mutual contacts they have.
+    3. Ranks by number of mutual contacts.
 
     This naturally filters out copiers/bots (which only send, never receive).
 
-    Returns DataFrame with columns: manager, team_size, total_sent_to_team,
-    total_recv_from_team, team_members.
+    Returns DataFrame with columns: manager (the person — kept for back-compat),
+    team_size (mutual-contact count), total_sent_to_team, total_recv_from_team,
+    team_members (their mutual contacts).
     """
     ef = edge_fact
     if exclude_emails:
@@ -236,7 +243,12 @@ def infer_reciprocal_teams(
 
 
 def build_reporting_pairs_from_teams(teams: pl.DataFrame) -> pl.DataFrame:
-    """Explode team members into individual manager-report pairs for treemap."""
+    """Explode mutual contacts into person/contact pairs for the treemap.
+
+    These pairs are undirected mutual relationships, NOT manager->report edges;
+    a pair (A, B) also appears as (B, A). Column names manager/report are kept
+    for back-compat but mean person/mutual-contact.
+    """
     if len(teams) == 0:
         return pl.DataFrame({"manager": [], "report": [], "msg_count": []})
 
