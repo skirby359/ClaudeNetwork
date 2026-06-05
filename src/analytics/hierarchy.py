@@ -53,8 +53,14 @@ def detect_nonhuman_addresses(person_dim: pl.DataFrame, edge_fact: pl.DataFrame)
     """Flag addresses that are likely nonhuman.
 
     Uses two signals:
-    1. Regex pattern matching on the address itself.
-    2. Extreme send ratio: >95% sends or <5% sends with 100+ messages.
+    1. Regex pattern matching on the address itself (noreply, copier, etc.).
+    2. High-volume one-way *senders*: >95% send ratio with 100+ messages sent.
+
+    Note: a high *receive* ratio is deliberately NOT treated as a machine signal.
+    An address that mostly receives is usually a human on distribution lists (a
+    donor or constituent who gets blasts but rarely replies), not an automated
+    system — flagging those produced many false positives on real client data.
+    Named system accounts that only receive are still caught by pattern matching.
     """
     emails = person_dim["email"].to_list()
 
@@ -81,11 +87,12 @@ def detect_nonhuman_addresses(person_dim: pl.DataFrame, edge_fact: pl.DataFrame)
         (pl.col("sent").cast(pl.Float64) / (pl.col("sent") + pl.col("received")).cast(pl.Float64))
         .alias("send_ratio")
     )
-    # Extreme ratio + high volume = likely machine
+    # High-volume one-way sender = likely machine. Only the high-SEND-ratio side
+    # is a machine signal (blasters that never receive); mostly-receiving is not.
     ratio_flags = ratios.with_columns(
         (
-            ((pl.col("send_ratio") > 0.95) | (pl.col("send_ratio") < 0.05))
-            & ((pl.col("sent") + pl.col("received")) > 100)
+            (pl.col("send_ratio") > 0.95)
+            & (pl.col("sent") > 100)
         ).alias("ratio_nonhuman")
     ).select(["email", "send_ratio", "ratio_nonhuman"])
 

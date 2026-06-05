@@ -250,6 +250,25 @@ class TestHierarchy:
         assert "is_nonhuman" in result.columns
         assert len(result) == len(person_dim)
 
+    def test_mostly_receiving_is_not_nonhuman(self):
+        # A human on distribution lists receives lots of blasts but rarely sends.
+        # That must NOT be flagged as a machine (regression: the old <5%-send
+        # branch misclassified donors/list members).
+        from src.analytics.hierarchy import detect_nonhuman_addresses
+        import polars as pl
+        pdim = pl.DataFrame({"email": ["receiver@example.com", "blaster@example.com"]})
+        edges = (
+            # receiver: 200 received, 0 sent  -> human on lists
+            [{"from_email": f"s{i}@x.com", "to_email": "receiver@example.com"} for i in range(200)]
+            # blaster: 200 sent, 0 received  -> machine-like one-way sender
+            + [{"from_email": "blaster@example.com", "to_email": f"r{i}@x.com"} for i in range(200)]
+        )
+        ef = pl.DataFrame(edges)
+        result = detect_nonhuman_addresses(pdim, ef)
+        flags = dict(zip(result["email"].to_list(), result["is_nonhuman"].to_list()))
+        assert flags["receiver@example.com"] is False
+        assert flags["blaster@example.com"] is True
+
     def test_compute_hierarchy_score(self, edge_fact, person_dim):
         from src.analytics.hierarchy import compute_hierarchy_score
         scores = compute_hierarchy_score(edge_fact, person_dim)
