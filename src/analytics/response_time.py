@@ -95,22 +95,28 @@ def compute_department_response_stats(
     reply_times: pl.DataFrame,
     person_dim: pl.DataFrame,
 ) -> pl.DataFrame:
-    """Group response times by domain (department proxy)."""
-    # Join domain onto person_b
-    with_domain = reply_times.join(
-        person_dim.select(["email", "domain"]),
+    """Group response times by department.
+
+    Uses the enriched `department` column when a department mapping is loaded;
+    otherwise falls back to email domain (so an org on a single domain with no
+    mapping shows as one group — load a department mapping in Settings to split it).
+    """
+    group_col = "department" if "department" in person_dim.columns else "domain"
+    with_dept = reply_times.join(
+        person_dim.select(["email", group_col]),
         left_on="person_b",
         right_on="email",
         how="left",
     )
 
     dept_stats = (
-        with_domain.group_by("domain")
+        with_dept.group_by(group_col)
         .agg([
             pl.col("median_reply_seconds").median().alias("median_response_sec"),
             pl.col("reply_count").sum().alias("total_replies"),
             pl.col("person_b").n_unique().alias("n_people"),
         ])
+        .rename({group_col: "department"})
         .sort("median_response_sec")
     )
     return dept_stats

@@ -30,7 +30,7 @@ from src.drilldown import (
 
 def _scope_edge_fact(start_date, end_date, scope):
     """Helper: return scoped edge_fact."""
-    ef = load_filtered_edge_fact(start_date, end_date)
+    ef = load_filtered_edge_fact(start_date, end_date, scope="all")
     pd_full = load_person_dim()
     internal_emails = set(pd_full.filter(pl.col("is_internal"))["email"].to_list())
     external_emails = set(pd_full.filter(~pl.col("is_internal"))["email"].to_list())
@@ -52,7 +52,7 @@ def _scope_edge_fact(start_date, end_date, scope):
 def _cached_community_analysis(start_date, end_date, scope):
     """Cache interaction matrix and bridges together."""
     ef_scoped = _scope_edge_fact(start_date, end_date, scope)
-    gm = load_filtered_graph_metrics(start_date, end_date)
+    gm = load_filtered_graph_metrics(start_date, end_date, scope="all")
     community_lookup = dict(zip(gm["email"].to_list(), gm["community_id"].to_list()))
 
     interaction_matrix = compute_community_interaction_matrix(ef_scoped, community_lookup)
@@ -80,8 +80,8 @@ st.caption("Analyzing how communities interact — and where they don't.")
 
 start_date, end_date = render_date_filter()
 
-edge_fact = load_filtered_edge_fact(start_date, end_date)
-graph_metrics = load_filtered_graph_metrics(start_date, end_date)
+edge_fact = load_filtered_edge_fact(start_date, end_date, scope="all")
+graph_metrics = load_filtered_graph_metrics(start_date, end_date, scope="all")
 person_dim = load_person_dim()
 
 if len(edge_fact) == 0:
@@ -208,9 +208,20 @@ if selected_comm:
             .sort("pagerank", descending=True)
         )
         st.write(f"**{len(comm_members)} members** in {selected_comm}")
+        st.caption(
+            "**Influence** ranks how central a person is to the flow of "
+            "communication — high when they're connected to other well-connected "
+            "people (a PageRank score, the same idea Google uses to rank pages). "
+            "**Received from / Sent to** are their distinct contacts in each direction."
+        )
+        members_display = comm_members.select([
+            "email", "display_name",
+            pl.col("pagerank").round(4).alias("influence"),
+            pl.col("in_degree").alias("contacts_received_from"),
+            pl.col("out_degree").alias("contacts_sent_to"),
+        ]).head(30)
         st.dataframe(
-            comm_members.select(["email", "display_name", "pagerank", "in_degree", "out_degree"])
-            .head(30).to_pandas(),
+            members_display.to_pandas(),
             width="stretch", height=min(400, len(comm_members) * 35 + 40),
         )
 

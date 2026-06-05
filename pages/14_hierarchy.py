@@ -27,7 +27,7 @@ from src.drilldown import (
 
 def _scope_data(start_date, end_date, scope):
     """Helper: return (ef_scoped, pd_scoped) for the given scope."""
-    ef = load_filtered_edge_fact(start_date, end_date)
+    ef = load_filtered_edge_fact(start_date, end_date, scope="all")
     pd_full = load_person_dim()
     internal_emails = set(pd_full.filter(pl.col("is_internal"))["email"].to_list())
     external_emails = set(pd_full.filter(~pl.col("is_internal"))["email"].to_list())
@@ -113,7 +113,7 @@ st.title("Organizational Hierarchy Inference")
 
 start_date, end_date = render_date_filter()
 
-edge_fact = load_filtered_edge_fact(start_date, end_date)
+edge_fact = load_filtered_edge_fact(start_date, end_date, scope="all")
 person_dim = load_person_dim()
 
 if len(edge_fact) == 0:

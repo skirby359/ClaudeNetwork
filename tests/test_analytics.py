@@ -229,7 +229,8 @@ class TestResponseTime:
         reply_times = compute_reply_times(edge_fact)
         if len(reply_times) > 0:
             dept = compute_department_response_stats(reply_times, person_dim)
-            assert "domain" in dept.columns
+            # Output is normalized to a "department" column (domain when no mapping)
+            assert "department" in dept.columns
 
 
 # ===================================================================

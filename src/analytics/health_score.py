@@ -124,15 +124,19 @@ def compute_health_score(
     else:
         sub_scores["cross_group"] = {"value": 50, "label": "Cross-Group Flow", "detail": "No community data"}
 
-    # 6. Resilience (inverse of max betweenness — no single point of failure)
+    # 6. Resilience (no single point of failure). Normalized betweenness is in
+    # [0,1] and is the fraction of shortest paths running through a node, so
+    # resilience = 1 - max betweenness = the share of paths NOT dependent on the
+    # single most central person. (The old `*10` scaling saturated to 0 for any
+    # small/tight network, where the top connector's betweenness is naturally high.)
     if len(graph_metrics) > 0 and "betweenness_centrality" in graph_metrics.columns:
         max_bc = float(graph_metrics["betweenness_centrality"].max())
-        # max_bc of 0.01 = very resilient (100), 0.10 = fragile (0)
-        resilience = max(0, (1 - max_bc * 10)) * 100
+        resilience = max(0.0, min(1.0, 1 - max_bc)) * 100
         sub_scores["resilience"] = {
             "value": resilience,
             "label": "Network Resilience",
-            "detail": f"Max connector score: {max_bc:.4f} (lower = more resilient)",
+            "detail": f"Top connector carries {max_bc:.0%} of shortest paths "
+                      f"(lower = more resilient)",
         }
     else:
         sub_scores["resilience"] = {"value": 50, "label": "Network Resilience", "detail": "No graph data"}

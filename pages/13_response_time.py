@@ -25,7 +25,7 @@ from src.drilldown import handle_plotly_person_click, handle_scatter_person_clic
 @st.cache_data(show_spinner="Computing reply times...", ttl=3600)
 def _cached_response_analysis(start_date, end_date, scope):
     """Cache reply times + person stats + dept stats together, keyed on (dates, scope)."""
-    ef = load_filtered_edge_fact(start_date, end_date)
+    ef = load_filtered_edge_fact(start_date, end_date, scope="all")
     pd_dim = load_person_dim()
     internal_emails = set(pd_dim.filter(pl.col("is_internal"))["email"].to_list())
     external_emails = set(pd_dim.filter(~pl.col("is_internal"))["email"].to_list())
@@ -66,7 +66,7 @@ st.title("Response Time Analysis")
 
 start_date, end_date = render_date_filter()
 
-edge_fact = load_filtered_edge_fact(start_date, end_date)
+edge_fact = load_filtered_edge_fact(start_date, end_date, scope="all")
 person_dim = load_person_dim()
 
 if len(edge_fact) == 0:
@@ -110,45 +110,44 @@ with c3:
 
 st.divider()
 
-# Top 20 fastest/slowest responders
-col_left, col_right = st.columns(2)
+# Fastest / slowest responders. person_stats is sorted ascending by response
+# time, so head = fastest, tail = slowest. Split into DISJOINT halves so the two
+# charts aren't mirror images of each other when few people qualify.
+qualifying = person_stats.filter(pl.col("total_replies") >= 5)
+n_q = len(qualifying)
+k = min(20, n_q // 2)
 
-with col_left:
-    st.subheader("Fastest Responders (Top 20)")
-    fast = person_stats.filter(pl.col("total_replies") >= 5).head(20)
-    if len(fast) > 0:
-        # Add internal/external label
-        fast_enriched = fast.with_columns(
-            pl.col("email").is_in(list(internal_emails)).alias("is_internal")
-        )
-        fast_pd = fast_enriched.with_columns(
-            (pl.col("median_response_sec") / 60).alias("median_min")
-        ).to_pandas()
-        fig = px.bar(fast_pd, x="email", y="median_min",
-                     title="Median Response Time (minutes)",
-                     color="is_internal",
-                     color_discrete_map={True: "#4e79a7", False: "#e15759"})
-        fig.update_layout(height=400, xaxis_tickangle=-45)
-        ev_fast = st.plotly_chart(fig, width="stretch", on_select="rerun", key="p13_fast")
-        handle_plotly_person_click(ev_fast, "p13_fast", start_date, end_date)
 
-with col_right:
-    st.subheader("Slowest Responders (Top 20)")
-    slow = person_stats.filter(pl.col("total_replies") >= 5).sort("median_response_sec", descending=True).head(20)
-    if len(slow) > 0:
-        slow_enriched = slow.with_columns(
-            pl.col("email").is_in(list(internal_emails)).alias("is_internal")
-        )
-        slow_pd = slow_enriched.with_columns(
-            (pl.col("median_response_sec") / 60).alias("median_min")
-        ).to_pandas()
-        fig2 = px.bar(slow_pd, x="email", y="median_min",
-                      title="Median Response Time (minutes)",
-                      color="is_internal",
-                      color_discrete_map={True: "#4e79a7", False: "#e15759"})
-        fig2.update_layout(height=400, xaxis_tickangle=-45)
-        ev_slow = st.plotly_chart(fig2, width="stretch", on_select="rerun", key="p13_slow")
-        handle_plotly_person_click(ev_slow, "p13_slow", start_date, end_date)
+def _resp_bar(df, key):
+    enriched = df.with_columns(
+        pl.col("email").is_in(list(internal_emails)).alias("is_internal")
+    )
+    pdf = enriched.with_columns((pl.col("median_response_sec") / 60).alias("median_min")).to_pandas()
+    fig = px.bar(pdf, x="email", y="median_min",
+                 title="Median Response Time (minutes)",
+                 color="is_internal",
+                 color_discrete_map={True: "#4e79a7", False: "#e15759"})
+    fig.update_layout(height=400, xaxis_tickangle=-45)
+    ev = st.plotly_chart(fig, width="stretch", on_select="rerun", key=key)
+    handle_plotly_person_click(ev, key, start_date, end_date)
+
+
+if k == 0:
+    # Too few responders to split meaningfully — show one ranked list.
+    st.subheader(f"Responders Ranked by Median Reply Time ({n_q})")
+    if n_q > 0:
+        _resp_bar(qualifying, "p13_fast")
+    else:
+        st.info("No responders with at least 5 replies in this scope.")
+else:
+    col_left, col_right = st.columns(2)
+    with col_left:
+        st.subheader(f"Fastest Responders (Top {k})")
+        _resp_bar(qualifying.head(k), "p13_fast")
+    with col_right:
+        st.subheader(f"Slowest Responders (Top {k})")
+        # tail = slowest k; reverse so the slowest appears first
+        _resp_bar(qualifying.tail(k).reverse(), "p13_slow")
 
 st.divider()
 
@@ -173,6 +172,12 @@ if len(scatter_data) > 0:
 # Department breakdown
 st.divider()
 st.subheader("Department Response Times")
+st.caption(
+    "Grouped by department if a department mapping is loaded, otherwise by email "
+    "domain. If you see only one row, no mapping is loaded — add one on the "
+    "**Settings** page to break staff out by team. (This is grouped by department, "
+    "which is different from the auto-detected *communities* shown on the Network Map.)"
+)
 if len(dept_stats) > 0:
     st.dataframe(dept_stats.to_pandas(), width="stretch")
     download_csv_button(dept_stats, "department_response_times.csv")
