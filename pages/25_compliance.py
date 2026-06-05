@@ -27,14 +27,14 @@ def _cached_blackouts(start_date, end_date, gap_hours):
 
 @st.cache_data(show_spinner="Detecting external spikes...", ttl=3600)
 def _cached_external_spikes(start_date, end_date, z_thresh):
-    ef = load_filtered_edge_fact(start_date, end_date)
+    ef = load_filtered_edge_fact(start_date, end_date, scope="all")
     pd_dim = load_person_dim()
     return detect_external_spikes(ef, pd_dim, z_threshold=z_thresh)
 
 
 @st.cache_data(show_spinner="Detecting after-hours clusters...", ttl=3600)
 def _cached_after_hours(start_date, end_date):
-    ef = load_filtered_edge_fact(start_date, end_date)
+    ef = load_filtered_edge_fact(start_date, end_date, scope="all")
     return detect_after_hours_clusters(ef)
 
 

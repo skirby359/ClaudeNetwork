@@ -31,7 +31,7 @@ def _cached_person_burstiness(start_date, end_date, email):
 
 @st.cache_data(show_spinner=False, ttl=3600)
 def _cached_sender_anomalies(start_date, end_date):
-    ef = load_filtered_edge_fact(start_date, end_date)
+    ef = load_filtered_edge_fact(start_date, end_date, scope="all")
     pd_dim = load_person_dim()
     return detect_sender_anomalies(ef, pd_dim)
 
@@ -46,7 +46,7 @@ st.title("Email Address Search")
 
 start_date, end_date = render_date_filter()
 
-edge_fact = load_filtered_edge_fact(start_date, end_date)
+edge_fact = load_filtered_edge_fact(start_date, end_date, scope="all")
 message_fact = load_filtered_message_fact(start_date, end_date)
 person_dim = load_person_dim()
 
@@ -163,7 +163,7 @@ if len(contacts) > 0:
 st.divider()
 st.subheader("Community Membership")
 try:
-    graph_metrics = load_filtered_graph_metrics(start_date, end_date)
+    graph_metrics = load_filtered_graph_metrics(start_date, end_date, scope="all")
     person_gm = graph_metrics.filter(pl.col("email") == selected)
     if len(person_gm) > 0:
         comm_id = person_gm["community_id"][0]

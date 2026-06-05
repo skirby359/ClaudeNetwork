@@ -204,6 +204,25 @@ def render_date_filter() -> tuple[dt.date, dt.date]:
             on_change=_on_date_change,
         )
 
+        # Communication scope: org-coordination views default to internal + human
+        # so external constituents / automated senders don't swamp the analysis.
+        st.subheader("Communication Scope")
+        _scope_labels = {
+            SCOPE_INTERNAL_HUMAN: "Internal + Human (default)",
+            SCOPE_ALL: "All addresses",
+        }
+        # key="_comm_scope" persists the choice across reruns/pages; the first
+        # option (internal+human) is the default on first render.
+        st.radio(
+            "Scope",
+            options=[SCOPE_INTERNAL_HUMAN, SCOPE_ALL],
+            format_func=lambda s: _scope_labels[s],
+            key="_comm_scope",
+            help="Internal + Human restricts network/community/hierarchy analysis "
+                 "to staff-to-staff human communication. Pages dedicated to external "
+                 "contacts, automated systems, and data quality always show everyone.",
+        )
+
     return start, end
 
 
@@ -461,8 +480,32 @@ def load_filtered_message_fact(start_date: dt.date, end_date: dt.date) -> pl.Dat
     return apply_date_filter(load_message_fact(), start_date, end_date)
 
 
-@st.cache_data(show_spinner=False, ttl=3600)
-def load_filtered_edge_fact(start_date: dt.date, end_date: dt.date) -> pl.DataFrame:
+# Communication-scope constants. The default org-coordination lens is internal +
+# human (external constituents/automated senders otherwise swamp community,
+# hierarchy, and network analysis). Pages that genuinely need everyone (External
+# Communications, Automated Systems, Data Quality, Compliance) pass scope="all".
+SCOPE_INTERNAL_HUMAN = "internal_human"
+SCOPE_ALL = "all"
+
+
+def get_comm_scope() -> str:
+    """Active communication scope (session-controlled; defaults to internal+human)."""
+    try:
+        return st.session_state.get("_comm_scope", SCOPE_INTERNAL_HUMAN)
+    except Exception:
+        return SCOPE_INTERNAL_HUMAN
+
+
+def _internal_human_emails(start_date: dt.date, end_date: dt.date) -> set:
+    """Set of internal-domain, human (non-automated) email addresses."""
+    pd_full = load_person_dim()
+    internal = set(pd_full.filter(pl.col("is_internal"))["email"].to_list())
+    # nonhuman is detected on the UNSCOPED graph (scope=ALL) to avoid recursion
+    nonhuman = set(load_nonhuman_emails(start_date, end_date))
+    return internal - nonhuman
+
+
+def _date_filtered_edge_fact(start_date: dt.date, end_date: dt.date) -> pl.DataFrame:
     config = get_config()
     cache_path = config.cache_path(config.edge_fact_file)
     if cache_path.exists():
@@ -482,6 +525,28 @@ def load_filtered_edge_fact(start_date: dt.date, end_date: dt.date) -> pl.DataFr
 
 
 @st.cache_data(show_spinner=False, ttl=3600)
+def _filtered_edge_fact_cached(start_date: dt.date, end_date: dt.date, scope: str) -> pl.DataFrame:
+    ef = _date_filtered_edge_fact(start_date, end_date)
+    if scope == SCOPE_INTERNAL_HUMAN:
+        keep = list(_internal_human_emails(start_date, end_date))
+        ef = ef.filter(
+            pl.col("from_email").is_in(keep) & pl.col("to_email").is_in(keep)
+        )
+    return ef
+
+
+def load_filtered_edge_fact(
+    start_date: dt.date, end_date: dt.date, scope: str | None = None
+) -> pl.DataFrame:
+    """Date-filtered edges, scoped to the active communication scope.
+
+    scope=None uses the session default (internal+human). Pass scope="all" to
+    bypass scoping (external/automated/data-quality pages).
+    """
+    return _filtered_edge_fact_cached(start_date, end_date, scope or get_comm_scope())
+
+
+@st.cache_data(show_spinner=False, ttl=3600)
 def load_filtered_weekly_agg(start_date: dt.date, end_date: dt.date) -> pl.DataFrame:
     mf = load_filtered_message_fact(start_date, end_date)
     ef = load_filtered_edge_fact(start_date, end_date)
@@ -495,18 +560,25 @@ def load_filtered_broadcast(start_date: dt.date, end_date: dt.date) -> pl.DataFr
 
 
 @st.cache_data(show_spinner="Computing network for selected dates...", ttl=3600)
-def load_filtered_graph_metrics(start_date: dt.date, end_date: dt.date) -> pl.DataFrame:
-    """Shared cached graph metrics for date-filtered data. Used by pages 06, 07, 09.
-
-    Pre-filters nonhuman addresses and uses resolution=0.5 for cleaner communities.
-    """
-    logger.info(f"Computing graph metrics for {start_date} to {end_date}")
-    ef = load_filtered_edge_fact(start_date, end_date)
+def _filtered_graph_metrics_cached(start_date: dt.date, end_date: dt.date, scope: str) -> pl.DataFrame:
+    logger.info(f"Computing graph metrics for {start_date} to {end_date} (scope={scope})")
+    ef = load_filtered_edge_fact(start_date, end_date, scope=scope)
     nonhuman = load_nonhuman_emails(start_date, end_date)
     G = build_graph(ef)
     result = compute_node_metrics(G, exclude_emails=set(nonhuman))
     logger.info(f"graph_metrics: {len(result)} nodes, {result['community_id'].n_unique()} communities")
     return result
+
+
+def load_filtered_graph_metrics(
+    start_date: dt.date, end_date: dt.date, scope: str | None = None
+) -> pl.DataFrame:
+    """Shared cached graph metrics for date-filtered data. Used by pages 06, 07, 09.
+
+    Honors the active communication scope (internal+human by default). Pass
+    scope="all" for pages that need the full network.
+    """
+    return _filtered_graph_metrics_cached(start_date, end_date, scope or get_comm_scope())
 
 
 @st.cache_data(show_spinner="Analyzing pairs for selected dates...", ttl=3600)
@@ -520,7 +592,9 @@ def load_nonhuman_emails(start_date: dt.date, end_date: dt.date) -> frozenset:
     """Cached frozenset of nonhuman email addresses for the given date range."""
     from src.analytics.hierarchy import detect_nonhuman_addresses
     person_dim = load_person_dim()
-    edge_fact = load_filtered_edge_fact(start_date, end_date)
+    # Detect on the UNSCOPED graph (scope=ALL): nonhuman detection needs the full
+    # send/receive picture, and this also breaks recursion with the scoped loader.
+    edge_fact = load_filtered_edge_fact(start_date, end_date, scope=SCOPE_ALL)
     flagged = detect_nonhuman_addresses(person_dim, edge_fact)
     return frozenset(flagged.filter(pl.col("is_nonhuman"))["email"].to_list())
 

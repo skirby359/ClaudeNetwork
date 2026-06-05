@@ -21,7 +21,7 @@ st.markdown("Identifies the most active **external** email addresses — people 
 
 start_date, end_date = render_date_filter()
 
-edge_fact = load_filtered_edge_fact(start_date, end_date)
+edge_fact = load_filtered_edge_fact(start_date, end_date, scope="all")
 
 if len(edge_fact) == 0:
     st.warning("No data in selected date range.")

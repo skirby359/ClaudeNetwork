@@ -31,13 +31,13 @@ from src.drilldown import handle_plotly_person_click, handle_plotly_week_click
 @st.cache_data(show_spinner=False, ttl=3600)
 def _cached_period_summary(start_date, end_date):
     mf = load_filtered_message_fact(start_date, end_date)
-    ef = load_filtered_edge_fact(start_date, end_date)
+    ef = load_filtered_edge_fact(start_date, end_date, scope="all")
     return compute_period_summary(mf, ef)
 
 
 @st.cache_data(show_spinner=False, ttl=3600)
 def _cached_sender_concentration(start_date, end_date):
-    ef = load_filtered_edge_fact(start_date, end_date)
+    ef = load_filtered_edge_fact(start_date, end_date, scope="all")
     return compute_sender_concentration(ef)
 
 
@@ -45,15 +45,15 @@ def _cached_sender_concentration(start_date, end_date):
 def _cached_narrative(start_date, end_date):
     mf = load_filtered_message_fact(start_date, end_date)
     wa = load_filtered_weekly_agg(start_date, end_date)
-    ef = load_filtered_edge_fact(start_date, end_date)
+    ef = load_filtered_edge_fact(start_date, end_date, scope="all")
     pd_dim = load_person_dim()
     return generate_executive_narrative(mf, wa, ef, pd_dim)
 
 
 @st.cache_data(show_spinner=False, ttl=3600)
 def _cached_bridges(start_date, end_date):
-    ef = load_filtered_edge_fact(start_date, end_date)
-    gm = load_filtered_graph_metrics(start_date, end_date)
+    ef = load_filtered_edge_fact(start_date, end_date, scope="all")
+    gm = load_filtered_graph_metrics(start_date, end_date, scope="all")
     community_lookup = dict(zip(gm["email"].to_list(), gm["community_id"].to_list()))
     G = build_graph(ef)
     return identify_bridges(G, community_lookup)
@@ -61,7 +61,7 @@ def _cached_bridges(start_date, end_date):
 
 @st.cache_data(show_spinner=False, ttl=3600)
 def _cached_reply_summary(start_date, end_date):
-    ef = load_filtered_edge_fact(start_date, end_date)
+    ef = load_filtered_edge_fact(start_date, end_date, scope="all")
     nonhuman = load_nonhuman_emails(start_date, end_date)
     # Filter to human-only for meaningful response times
     ef_human = ef.filter(
@@ -95,7 +95,7 @@ data_max = full_mf["timestamp"].max().date()
 comp_enabled, comp_start, comp_end = render_comparison_filter(data_min, data_max)
 
 message_fact = load_filtered_message_fact(start_date, end_date)
-edge_fact = load_filtered_edge_fact(start_date, end_date)
+edge_fact = load_filtered_edge_fact(start_date, end_date, scope="all")
 person_dim = load_person_dim()
 weekly_agg = load_filtered_weekly_agg(start_date, end_date)
 nonhuman_emails = load_nonhuman_emails(start_date, end_date)
@@ -191,7 +191,7 @@ with c4:
                   help="Message size is not available from this data source "
                        "(e.g. Microsoft Graph header-only extraction).")
 with c5:
-    gm = load_filtered_graph_metrics(start_date, end_date)
+    gm = load_filtered_graph_metrics(start_date, end_date, scope="all")
     n_communities = gm["community_id"].n_unique() if len(gm) > 0 else 0
     st.metric("Communication Groups", f"{n_communities}")
 
