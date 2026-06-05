@@ -155,30 +155,38 @@ st.caption(
 )
 
 if len(interaction_matrix) > 0:
-    # Relabel for readability
-    str_comm_labels = {str(k): v for k, v in comm_labels.items()}
-    im_display = interaction_matrix.with_columns([
-        pl.col("comm_from").cast(pl.Utf8).replace(str_comm_labels).alias("from_community"),
-        pl.col("comm_to").cast(pl.Utf8).replace(str_comm_labels).alias("to_community"),
-    ])
-    pivot = im_display.to_pandas().pivot_table(
-        index="from_community", columns="to_community", values="msg_count", fill_value=0
+    # Pivot on community IDs (which are UNIQUE) — pivoting on labels misaligns the
+    # grid when two communities share a label (e.g. both "gmail.com"). Display
+    # labels are applied positionally afterward so blocks line up with ticks.
+    pivot = (
+        interaction_matrix.to_pandas().pivot_table(
+            index="comm_from", columns="comm_to", values="msg_count",
+            aggfunc="sum", fill_value=0,
+        )
+        .reindex(index=valid_communities, columns=valid_communities, fill_value=0)
     )
-    # Sort axes naturally
-    sorted_labels = [comm_labels[c] for c in valid_communities if comm_labels[c] in pivot.index]
-    pivot = pivot.reindex(index=sorted_labels, columns=sorted_labels, fill_value=0)
+    # Drop communities with no inter-community flow (all-zero row AND column) so
+    # the heatmap doesn't show empty rows/columns.
+    nonzero = [c for c in valid_communities
+               if pivot.loc[c].sum() > 0 or pivot[c].sum() > 0]
+    pivot = pivot.reindex(index=nonzero, columns=nonzero, fill_value=0)
 
-    fig = px.imshow(
-        pivot,
-        labels=dict(x="To Community", y="From Community", color="Messages"),
-        title="Inter-Community Message Volume",
-        aspect="auto",
-        color_continuous_scale="Blues",
-    )
-    fig.update_layout(height=max(400, n_communities * 22 + 100))
-    fig.update_xaxes(tickangle=-45, tickfont_size=10)
-    fig.update_yaxes(tickfont_size=10)
-    st.plotly_chart(fig, width="stretch")
+    if len(nonzero) == 0:
+        st.info("No inter-community message flow to display in this scope.")
+    else:
+        tick_labels = [comm_labels.get(c, f"Group {c}") for c in nonzero]
+        fig = px.imshow(
+            pivot.values,
+            x=tick_labels, y=tick_labels,
+            labels=dict(x="To Community", y="From Community", color="Messages"),
+            title="Inter-Community Message Volume",
+            aspect="auto",
+            color_continuous_scale="Blues",
+        )
+        fig.update_layout(height=max(400, len(nonzero) * 22 + 100))
+        fig.update_xaxes(tickangle=-45, tickfont_size=10)
+        fig.update_yaxes(tickfont_size=10)
+        st.plotly_chart(fig, width="stretch")
 
 # --- Section 1b: Community explorer ---
 st.divider()

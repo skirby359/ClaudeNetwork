@@ -140,12 +140,14 @@ st.subheader("Community Hierarchy Nesting")
 st.caption("How fine-grained communities nest inside coarser ones.")
 
 if len(nesting) > 0:
-    # Treemap: coarse -> medium -> fine
+    # Treemap: coarse -> medium -> fine. Prefix each level so the same numeric id
+    # at different levels (e.g. "0" as both coarse and medium) doesn't collide —
+    # collisions make Plotly drop the labels.
     nesting_display = nesting.with_columns([
         pl.lit("All").alias("root"),
-        pl.col("community_coarse").cast(pl.Utf8).alias("coarse_str"),
-        pl.col("community_medium").cast(pl.Utf8).alias("medium_str"),
-        pl.col("community_fine").cast(pl.Utf8).alias("fine_str"),
+        ("Coarse " + pl.col("community_coarse").cast(pl.Utf8)).alias("coarse_str"),
+        ("Medium " + pl.col("community_medium").cast(pl.Utf8)).alias("medium_str"),
+        ("Fine " + pl.col("community_fine").cast(pl.Utf8)).alias("fine_str"),
     ])
     fig_tree = px.treemap(
         nesting_display.to_pandas(),
@@ -155,6 +157,7 @@ if len(nesting) > 0:
         color="n_members",
         color_continuous_scale="Blues",
     )
+    fig_tree.update_traces(textinfo="label+value")
     fig_tree.update_layout(height=600)
     st.plotly_chart(fig_tree, width="stretch")
 

@@ -51,6 +51,7 @@ def compute_reply_times(edge_fact: pl.DataFrame) -> pl.DataFrame:
         by_left=["sender", "receiver"],
         by_right=["original_sender", "replier"],
         strategy="forward",  # find the next reply AFTER send_time
+        check_sortedness=False,  # already sorted above; silences the per-group warning
     )
 
     # Filter: reply must exist and be within 24 hours

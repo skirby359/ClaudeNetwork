@@ -169,16 +169,22 @@ def _compute_nmi(labels1: np.ndarray, labels2: np.ndarray) -> float:
     classes1 = np.unique(labels1)
     classes2 = np.unique(labels2)
 
-    # Entropy H(X)
+    # Entropy H(X). Clamp to >=0 — the +1e-12 fudge inside log makes a single-class
+    # partition come out as a tiny negative, which then breaks the sqrt below.
     def entropy(labels):
         _, counts = np.unique(labels, return_counts=True)
         probs = counts / n
-        return -np.sum(probs * np.log(probs + 1e-12))
+        return max(0.0, -np.sum(probs * np.log(probs + 1e-12)))
 
     h1 = entropy(labels1)
     h2 = entropy(labels2)
 
-    if h1 == 0 or h2 == 0:
+    eps = 1e-9
+    # Both months are a single community = identical trivial structure -> stable.
+    if h1 <= eps and h2 <= eps:
+        return 1.0
+    # One trivial, one not -> no shared structure.
+    if h1 <= eps or h2 <= eps:
         return 0.0
 
     # Build contingency matrix in O(n) using index mapping
@@ -201,7 +207,7 @@ def _compute_nmi(labels1: np.ndarray, labels2: np.ndarray) -> float:
                 continue
             mi += (n_ij / n) * np.log((n * n_ij) / (row_sums[i] * col_sums[j]) + 1e-12)
 
-    denom = np.sqrt(h1 * h2)
+    denom = np.sqrt(max(h1 * h2, 0.0))
     if denom < 1e-12:
         return 0.0
-    return mi / denom
+    return float(np.clip(mi / denom, 0.0, 1.0))

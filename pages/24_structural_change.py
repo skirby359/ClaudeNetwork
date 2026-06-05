@@ -56,7 +56,25 @@ if filter_nonhuman and nonhuman_emails:
 # --- Section 1: NMI Timeline with Alert Zones ---
 st.divider()
 st.subheader("Community Stability Over Time")
-st.caption("Normalized Mutual Information between consecutive months. Lower = more change.")
+st.caption(
+    "Each month, people are grouped into communities based on who they email. "
+    "**NMI** (Normalized Mutual Information) compares this month's grouping to last "
+    "month's: **1.0 = identical structure, 0 = completely reshuffled.** A low score "
+    "means the communication structure changed a lot — people moved between groups, "
+    "or groups split/merged. A **warning** is flagged when NMI drops below 0.5 "
+    "(below 0.3 = critical)."
+)
+with st.expander("How to read this — and a caveat for small teams"):
+    st.markdown(
+        "- High NMI (green) = stable structure month to month.\n"
+        "- Low NMI (orange/red) = the org reorganized, or a major project shifted who talks to whom.\n"
+        "- **Caveat:** with few people active in a month, community detection is "
+        "inherently noisy — a low NMI can reflect sparse data rather than a real "
+        "reorganization. Treat warnings on small months as 'worth a look,' not proof.\n"
+        "- If *every* month is flagged, the team is likely too small for monthly "
+        "structural analysis. Switch the **Communication Scope** (sidebar) to "
+        "**All addresses** for a denser network, or analyze a longer time window."
+    )
 
 fig_nmi = go.Figure()
 fig_nmi.add_trace(go.Scatter(
@@ -81,7 +99,11 @@ fig_nmi.update_layout(
 st.plotly_chart(fig_nmi, width="stretch")
 
 if len(alerts) > 0:
-    st.warning(f"**{len(alerts)} stability alert(s)** detected.")
+    st.warning(
+        f"**{len(alerts)} month(s)** where community structure changed enough to flag "
+        f"(NMI below 0.5). Each row is a month-pair where people notably regrouped — "
+        f"see the caveat above before treating these as definite reorganizations."
+    )
     st.dataframe(alerts.to_pandas(), width="stretch")
 
 # --- Section 2: Shift Classification ---

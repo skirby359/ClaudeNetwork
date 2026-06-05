@@ -30,9 +30,16 @@ def _cached_alerts(start_date, end_date, rules_json):
     nonhuman = load_nonhuman_emails(start_date, end_date)
     nh_list = list(nonhuman)
 
-    mf_human = mf.filter(~pl.col("from_email").is_in(nh_list))
+    # Alerts are about the organization's own staff — flag INTERNAL human people
+    # only. External constituents/donors aren't actionable and shouldn't trigger
+    # after-hours / blackout / concentration alerts.
+    pd_dim = load_person_dim()
+    internal = set(pd_dim.filter(pl.col("is_internal"))["email"].to_list())
+    keep = list(internal - set(nh_list))
+
+    mf_human = mf.filter(pl.col("from_email").is_in(keep))
     ef_human = ef.filter(
-        ~pl.col("from_email").is_in(nh_list) & ~pl.col("to_email").is_in(nh_list)
+        pl.col("from_email").is_in(keep) & pl.col("to_email").is_in(keep)
     )
 
     # Health score
@@ -75,7 +82,11 @@ def _cached_alerts(start_date, end_date, rules_json):
 st.set_page_config(page_title="Alert Dashboard", layout="wide")
 _page_log = log_page_entry("29_alerts")
 st.title("Alert Dashboard")
-st.caption("Configurable thresholds that flag communication risks across the organization.")
+st.caption(
+    "Configurable thresholds that flag communication risks across the organization. "
+    "Scoped to **internal staff only** — external contacts and automated senders are "
+    "excluded since their behavior isn't actionable."
+)
 
 start_date, end_date = render_date_filter()
 

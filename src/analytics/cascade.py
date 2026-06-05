@@ -56,6 +56,7 @@ def detect_cascades(
         right_on="in_time",
         by="person",
         strategy="backward",
+        check_sortedness=False,  # already sorted by [person, time]; silences warning
     )
 
     # Filter: incoming must exist and delay must be within window
