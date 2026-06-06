@@ -19,6 +19,9 @@ NONHUMAN_PATTERNS = [
     r"^(microsoftexchange|exchange329)",
     r"^(hiplink|sourcefire|blueteam|p25radio)",
     r"^(scomcml|adminisd|rsnadmin)",
+    # Hosting/system accounts. Anchored to a complete token (next char must be a
+    # delimiter, digit, @, or end) so surnames like "Cronin" aren't misflagged.
+    r"^(cpanel|whm|hostmaster|webmaster|root|cron|bounce|daemon)([-_.@0-9]|$)",
 ]
 
 _NONHUMAN_RE = re.compile("|".join(NONHUMAN_PATTERNS), re.IGNORECASE)
@@ -31,7 +34,7 @@ _TYPE_PATTERNS = [
     (r"(alert|hiplink|sourcefire|blueteam|scom|eventlog|p25radio)", "Alert/Monitoring"),
     (r"(postmaster|mailer[-_.]?daemon|microsoftexchange|exchange329)", "Mail Infrastructure"),
     (r"(automail|auto[-_.]?notify|auto[-_.]?response)", "Auto-Response"),
-    (r"(sql\.|flatfileprocess|importerror|_error@|adminisd|rsnadmin)", "System Process"),
+    (r"(sql\.|flatfileprocess|importerror|_error@|adminisd|rsnadmin|cpanel|whm|hostmaster|cron|bounce|daemon)", "System Process"),
 ]
 _TYPE_COMPILED = [(re.compile(p, re.IGNORECASE), t) for p, t in _TYPE_PATTERNS]
 

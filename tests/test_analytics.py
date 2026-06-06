@@ -244,6 +244,12 @@ class TestHierarchy:
         assert is_likely_nonhuman("donotreply@example.com")
         assert is_likely_nonhuman("copier123@example.com")
         assert not is_likely_nonhuman("alice@example.com")
+        # Hosting/system accounts, anchored so surnames aren't misflagged
+        assert is_likely_nonhuman("cpanel@example.com")
+        assert is_likely_nonhuman("root@example.com")
+        assert is_likely_nonhuman("cron@example.com")
+        assert not is_likely_nonhuman("cronin@example.com")  # surname, not a system acct
+        assert not is_likely_nonhuman("bouncer@example.com")
 
     def test_detect_nonhuman_addresses(self, person_dim, edge_fact):
         from src.analytics.hierarchy import detect_nonhuman_addresses
