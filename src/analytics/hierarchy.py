@@ -267,6 +267,78 @@ def build_reporting_pairs_from_teams(teams: pl.DataFrame) -> pl.DataFrame:
 # Legacy wrappers (kept for backward compatibility)
 # ---------------------------------------------------------------------------
 
+def infer_calculated_hierarchy(
+    edge_fact: pl.DataFrame,
+    hierarchy_scores: pl.DataFrame,
+    min_msgs: int = 5,
+) -> pl.DataFrame:
+    """Infer a directional reporting tree from communication patterns.
+
+    ALGORITHMIC ESTIMATE — NOT an official org chart. Method: each person is
+    linked to the higher-"authority" person they most communicate with. Authority
+    = hierarchy_score (sends to many, receives from few). For each person we pick,
+    among their contacts whose score is STRICTLY higher (and with >= min_msgs
+    exchanged), the highest-scoring one as their inferred supervisor. Strict
+    ordering guarantees the result is acyclic (a tree); the top-scoring person(s)
+    become roots.
+
+    Returns: email, display_name, inferred_manager, hierarchy_score, msg_weight,
+    total_volume.
+    """
+    from collections import defaultdict
+
+    schema = {
+        "email": pl.String, "display_name": pl.String, "inferred_manager": pl.String,
+        "hierarchy_score": pl.Float64, "msg_weight": pl.Int64, "total_volume": pl.Int64,
+    }
+    if len(hierarchy_scores) == 0 or len(edge_fact) == 0:
+        return pl.DataFrame(schema=schema)
+
+    hs = hierarchy_scores
+    score = dict(zip(hs["email"].to_list(), hs["hierarchy_score"].to_list()))
+    name = (dict(zip(hs["email"].to_list(), hs["display_name"].to_list()))
+            if "display_name" in hs.columns else {})
+    sent = dict(zip(hs["email"].to_list(), hs["total_sent"].fill_null(0).to_list())) if "total_sent" in hs.columns else {}
+    recv = dict(zip(hs["email"].to_list(), hs["total_received"].fill_null(0).to_list())) if "total_received" in hs.columns else {}
+
+    # Undirected contact weights (messages exchanged either direction).
+    pair_w = defaultdict(int)
+    contacts = defaultdict(set)
+    pairs = edge_fact.group_by(["from_email", "to_email"]).agg(pl.len().alias("w"))
+    for r in pairs.iter_rows(named=True):
+        a, b, w = r["from_email"], r["to_email"], r["w"]
+        if a == b or a not in score or b not in score:
+            continue
+        key = (a, b) if a < b else (b, a)
+        pair_w[key] += w
+        contacts[a].add(b)
+        contacts[b].add(a)
+
+    rows = []
+    for p in score:
+        candidates = []
+        for c in contacts.get(p, ()):
+            if score[c] > score[p]:  # strictly higher authority -> potential manager
+                w = pair_w[(p, c) if p < c else (c, p)]
+                if w >= min_msgs:
+                    candidates.append((score[c], w, c))
+        if candidates:
+            candidates.sort(reverse=True)  # highest score, then most messages
+            mgr, mw = candidates[0][2], candidates[0][1]
+        else:
+            mgr, mw = "", 0
+        rows.append({
+            "email": p,
+            "display_name": name.get(p, "") or "",
+            "inferred_manager": mgr,
+            "hierarchy_score": float(score[p]),
+            "msg_weight": int(mw),
+            "total_volume": int(sent.get(p, 0) + recv.get(p, 0)),
+        })
+
+    return pl.DataFrame(rows, schema=schema).sort("hierarchy_score", descending=True)
+
+
 def infer_reporting_pairs(
     edge_fact: pl.DataFrame,
     hierarchy_scores: pl.DataFrame,

@@ -13,7 +13,9 @@ from src.state import (
 from src.analytics.hierarchy import (
     compute_hierarchy_score, detect_nonhuman_addresses,
     infer_reciprocal_teams, build_reporting_pairs_from_teams,
+    infer_calculated_hierarchy,
 )
+import plotly.graph_objects as go
 from src.export import download_csv_button
 from src.drilldown import (
     handle_plotly_person_click, handle_scatter_person_click,
@@ -103,6 +105,22 @@ def _cached_hierarchy_score(start_date, end_date, scope, exclude_emails):
     return compute_hierarchy_score(ef_filtered, pd_filtered)
 
 
+@st.cache_data(show_spinner="Inferring calculated hierarchy...", ttl=3600)
+def _cached_calc_hierarchy(start_date, end_date, scope, exclude_emails, min_msgs):
+    """Cache the inferred directional hierarchy."""
+    ef_scoped, pd_scoped = _scope_data(start_date, end_date, scope)
+    if exclude_emails:
+        ef_scoped = ef_scoped.filter(
+            ~pl.col("from_email").is_in(list(exclude_emails))
+            & ~pl.col("to_email").is_in(list(exclude_emails))
+        )
+        pd_scoped = pd_scoped.filter(~pl.col("email").is_in(list(exclude_emails)))
+    if len(ef_scoped) == 0:
+        return pl.DataFrame()
+    scores = compute_hierarchy_score(ef_scoped, pd_scoped)
+    return infer_calculated_hierarchy(ef_scoped, scores, min_msgs=min_msgs)
+
+
 # ---------------------------------------------------------------------------
 # Page layout
 # ---------------------------------------------------------------------------
@@ -188,7 +206,11 @@ if len(ef_check) == 0:
 # =========================================================================
 # TAB 1: Reciprocal Teams  |  TAB 2: Hierarchy Score (original)
 # =========================================================================
-tab_teams, tab_score = st.tabs(["Mutual Communication Groups (recommended)", "Hierarchy Score (original)"])
+tab_teams, tab_calc, tab_score = st.tabs([
+    "Mutual Communication Groups (recommended)",
+    "Calculated Hierarchy (inferred)",
+    "Hierarchy Score (original)",
+])
 
 # --- Tab 1: Mutual communication groups ---
 with tab_teams:
@@ -281,6 +303,65 @@ with tab_teams:
         ev_teams_df = st.dataframe(teams_pd, width="stretch", on_select="rerun", selection_mode="single-row", key="p14_teams_df")
         handle_dataframe_person_click(ev_teams_df, teams_pd, "p14_teams_df", "person", start_date, end_date)
         download_csv_button(table_df, "mutual_communication_groups.csv")
+
+# --- Tab: Calculated (inferred) hierarchy ---
+with tab_calc:
+    st.subheader("Calculated Hierarchy")
+    st.warning(
+        "**This is an algorithmic estimate inferred from email patterns — not an "
+        "official org chart, and not evidence of actual reporting lines.** Each "
+        "person is linked to the higher-'authority' colleague they communicate with "
+        "most, where authority = sends to many / receives from few. Use it as a "
+        "*hypothesis* about informal influence structure, never as an HR determination."
+    )
+
+    calc = _cached_calc_hierarchy(
+        start_date, end_date, scope_tab, effective_excludes, min_msgs=5
+    )
+
+    if len(calc) == 0:
+        st.info("Not enough data to infer a hierarchy in this scope.")
+    else:
+        n_roots = len(calc.filter(pl.col("inferred_manager") == ""))
+        c1, c2 = st.columns(2)
+        with c1:
+            st.metric("People placed", f"{len(calc):,}")
+        with c2:
+            st.metric("Top-level (no inferred manager)", f"{n_roots:,}")
+
+        # Org-chart-style treemap: parents = inferred manager, root = "" .
+        calc_pd = calc.to_pandas()
+        labels = [e.split("@")[0] for e in calc_pd["email"]]
+        fig_calc = go.Figure(go.Treemap(
+            ids=calc_pd["email"].tolist(),
+            labels=labels,
+            parents=calc_pd["inferred_manager"].tolist(),
+            values=(calc_pd["total_volume"] + 1).tolist(),
+            branchvalues="remainder",
+            hovertext=[
+                f"{e}<br>authority score: {s:.2f}<br>messages to inferred manager: {w}"
+                for e, s, w in zip(calc_pd["email"], calc_pd["hierarchy_score"], calc_pd["msg_weight"])
+            ],
+            hoverinfo="text",
+            root_color="lightgrey",
+        ))
+        fig_calc.update_layout(height=600, margin=dict(t=30, l=0, r=0, b=0))
+        st.plotly_chart(fig_calc, width="stretch")
+
+        st.subheader("Inferred Reporting Relationships")
+        calc_table = calc.select([
+            pl.col("email").alias("person"),
+            "display_name",
+            pl.col("inferred_manager").alias("inferred_reports_to"),
+            pl.col("hierarchy_score").round(2).alias("authority_score"),
+            pl.col("msg_weight").alias("messages_with_manager"),
+        ])
+        ev_calc = st.dataframe(
+            calc_table.to_pandas(), width="stretch",
+            on_select="rerun", selection_mode="single-row", key="p14_calc_df",
+        )
+        handle_dataframe_person_click(ev_calc, calc_table.to_pandas(), "p14_calc_df", "person", start_date, end_date)
+        download_csv_button(calc_table, "calculated_hierarchy.csv")
 
 # --- Tab 2: Original hierarchy score ---
 with tab_score:

@@ -140,20 +140,28 @@ st.subheader("Community Hierarchy Nesting")
 st.caption("How fine-grained communities nest inside coarser ones.")
 
 if len(nesting) > 0:
-    # Treemap: coarse -> medium -> fine. Prefix each level so the same numeric id
-    # at different levels (e.g. "0" as both coarse and medium) doesn't collide —
-    # collisions make Plotly drop the labels.
+    # Treemap: coarse -> medium -> fine. Use the human label when available, but
+    # keep a per-level id prefix so a label that repeats across levels (or a child
+    # that equals its parent) doesn't collide and blank out in Plotly.
+    def _lvl_expr(level):
+        id_col = f"community_{level}"
+        label_col = f"label_{level}"
+        prefix = level.capitalize() + " " + pl.col(id_col).cast(pl.Utf8)
+        if label_col in nesting.columns:
+            return (prefix + ": " + pl.col(label_col).fill_null("").cast(pl.Utf8)).alias(f"{level}_str")
+        return prefix.alias(f"{level}_str")
+
     nesting_display = nesting.with_columns([
-        pl.lit("All").alias("root"),
-        ("Coarse " + pl.col("community_coarse").cast(pl.Utf8)).alias("coarse_str"),
-        ("Medium " + pl.col("community_medium").cast(pl.Utf8)).alias("medium_str"),
-        ("Fine " + pl.col("community_fine").cast(pl.Utf8)).alias("fine_str"),
+        pl.lit("All communities").alias("root"),
+        _lvl_expr("coarse"),
+        _lvl_expr("medium"),
+        _lvl_expr("fine"),
     ])
     fig_tree = px.treemap(
         nesting_display.to_pandas(),
         path=["root", "coarse_str", "medium_str", "fine_str"],
         values="n_members",
-        title="Community Nesting: Coarse > Medium > Fine",
+        title="Community Nesting: Coarse > Medium > Fine (label shows dominant member/domain)",
         color="n_members",
         color_continuous_scale="Blues",
     )

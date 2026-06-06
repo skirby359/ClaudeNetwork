@@ -203,10 +203,19 @@ def _classify_communities(partition: dict[str, int]) -> dict[int, str]:
 
 
 def build_hierarchy_nesting(leiden_df: pl.DataFrame) -> pl.DataFrame:
-    """Map fine -> medium -> coarse nesting for treemap visualization."""
+    """Map fine -> medium -> coarse nesting for treemap visualization.
+
+    Carries the human-readable community labels when present so the treemap can
+    show meaningful names instead of bare numeric ids.
+    """
+    aggs = [pl.len().alias("n_members")]
+    for lvl in ("coarse", "medium", "fine"):
+        col = f"community_label_{lvl}"
+        if col in leiden_df.columns:
+            aggs.append(pl.col(col).first().alias(f"label_{lvl}"))
     nesting = (
         leiden_df.group_by(["community_fine", "community_medium", "community_coarse"])
-        .agg(pl.len().alias("n_members"))
+        .agg(aggs)
         .sort(["community_coarse", "community_medium", "community_fine"])
     )
     return nesting

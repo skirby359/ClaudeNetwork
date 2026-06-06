@@ -259,14 +259,22 @@ def show_community_dialog(community_id: int, start_date, end_date):
     ).sort("pagerank", descending=True)
 
     st.markdown(f"### Community {community_id}")
+    if len(enriched) == 0:
+        st.info(
+            "This community has no members in the current scope/date range "
+            "(it may have been filtered out — e.g. by the Communication Scope toggle)."
+        )
+        return
+
+    avg_pr = enriched["pagerank"].mean()
+    avg_deg = (enriched["in_degree"] + enriched["out_degree"]).mean()
     c1, c2, c3 = st.columns(3)
     with c1:
         st.metric("Members", f"{len(enriched):,}")
     with c2:
-        st.metric("Avg PageRank", f"{enriched['pagerank'].mean():.4f}")
+        st.metric("Avg Influence", f"{avg_pr:.4f}" if avg_pr is not None else "N/A")
     with c3:
-        avg_deg = (enriched["in_degree"] + enriched["out_degree"]).mean()
-        st.metric("Avg Degree", f"{avg_deg:.1f}")
+        st.metric("Avg Degree", f"{avg_deg:.1f}" if avg_deg is not None else "N/A")
 
     n_internal = len(enriched.filter(pl.col("is_internal")))
     st.caption(f"Internal: {n_internal} | External: {len(enriched) - n_internal}")
