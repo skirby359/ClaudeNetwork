@@ -20,7 +20,7 @@ The top senders are not people — they are systems. Prosecutors' case notificat
 
 ### 2. Five People Hold the Organization Together
 
-Network analysis detected 628 distinct communication communities within the county. But five individuals — [redacted], [redacted], [redacted], [redacted], and County Clerk [redacted] — serve as critical bridges connecting otherwise isolated groups. Removing any one of them from the network would fragment inter-departmental communication.
+Network analysis detected 628 distinct communication communities within the county. But just five individuals serve as critical bridges connecting otherwise isolated groups. Removing any one of them from the network would fragment inter-departmental communication. *(Specific individuals are identified in client deliverables; they are withheld here.)*
 
 **Why it matters:** These "organizational linchpins" represent a key-person risk. If one leaves, retires, or is out for an extended period, information flow between departments degrades. Succession planning should prioritize these roles.
 
@@ -32,13 +32,13 @@ The median reply time across 60,484 detected reply pairs is just 22 minutes. 86.
 
 ### 4. After-Hours Email is Real, But Concentrated
 
-18.7% of messages are sent outside business hours. 7.4% are sent on weekends. However, the majority of after-hours traffic is automated (system alerts, paging, monitoring). A handful of human staff show 60-75% after-hours email rates — potential indicators of workload imbalance, burnout risk, or roles that should be reclassified as shift work. The 911 Duty Supervisor at 57.9% after-hours is expected; a county clerk staff member at 68.6% is not.
+18.7% of messages are sent outside business hours. 7.4% are sent on weekends. However, the majority of after-hours traffic is automated (system alerts, paging, monitoring). A handful of human staff show 60-75% after-hours email rates — potential indicators of workload imbalance, burnout risk, or roles that should be reclassified as shift work. An emergency-dispatch supervisor at 57.9% after-hours is expected; a staffer in a routine daytime role at 68.6% is not.
 
 **Why it matters:** After-hours analysis separates genuine overwork from automated noise. It identifies specific individuals who may need workload relief — something exit interviews catch too late.
 
 ### 5. The External Dependency Map is Revealing
 
-The county's external communication reveals its operational dependencies: Washington State prosecutors (722K message edges), Spokane Police Department (a separate domain from the county), DSHS, defense attorney networks, King County, the Department of Justice, and Avista (the local utility). One external account — a prosecutor in a neighboring county — generated 145,000 message edges into the Spokane County network, suggesting a major cross-jurisdictional caseload.
+The county's external communication reveals its operational dependencies: Washington State prosecutors (722K message edges), Spokane Police Department (a separate domain from the county), DSHS, defense attorney networks, King County, the Department of Justice, and Avista (the local utility). One external account — a prosecutor in a neighboring county — generated 145,000 message edges into the county network, suggesting a major cross-jurisdictional caseload.
 
 **Why it matters:** External communication patterns reveal inter-agency dependencies, vendor relationships, and cross-jurisdictional workload that don't appear in org charts or budget documents.
 
@@ -62,4 +62,4 @@ The Email Metadata Analytics Platform is a 20-page interactive dashboard that tr
 
 Available for government agencies, law firms, HR consultants, and oversight bodies. Analysis engagements start at $10,000.
 
-**Contact:** [your email/website here]
+**Contact:** Steve Kirby, J.D. · kirby@tikorconsulting.com · [Tikor Consulting](https://www.tikorconsulting.com)
